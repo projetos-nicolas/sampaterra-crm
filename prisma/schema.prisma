@@ -1,0 +1,517 @@
+// ============================================================
+// SAMPA TERRA CRM — Schema Prisma
+// Banco: PostgreSQL via Supabase
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  admin
+  coordinator
+  engineer
+  funcionario
+  client
+}
+
+enum LeadStatus {
+  contato_inicial
+  visita_tecnica
+  elaboracao_proposta
+  negociacao
+  fechado_ganho
+  proposta_declinada
+  perdido
+}
+
+enum ProposalStatus {
+  rascunho
+  enviada
+  em_negociacao
+  aprovada
+  recusada
+  cancelada
+}
+
+enum ProjectStatus {
+  aguardando_inicio
+  em_andamento
+  pausado
+  concluido
+  cancelado
+}
+
+enum DocType {
+  art
+  rrt
+  memorial_descritivo
+  contrato
+  planilha_calculo
+  prancha_pdf
+  link_externo
+  outro
+}
+
+enum DocStatus {
+  a_iniciar
+  previa
+  em_producao
+  em_revisao
+  em_conferencia
+  liberado_para_obra
+  finalizado
+  superado
+}
+
+enum DocPriority {
+  baixa
+  media
+  alta
+  urgente
+  prazo_a_definir
+}
+
+enum PaymentStatus {
+  pendente
+  pago
+  parcial
+  atrasado
+}
+
+enum ExpenseCategory {
+  salario
+  contas
+  manutencao
+  bonificacao
+  equipamento
+  outros
+}
+
+// ============================================================
+// USUÁRIOS (sistema interno)
+// ============================================================
+
+model User {
+  id         String    @id @default(uuid())
+  name       String
+  email      String    @unique
+  password   String    // bcrypt hash
+  role       UserRole  @default(engineer)
+  active     Boolean   @default(true)
+  cliente_id String?   // FUTURO: vínculo portal do cliente
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // Relações
+  client     Client?   @relation("ClientUser", fields: [cliente_id], references: [id])
+  interactions Interaction[]
+  projectLogs  ProjectLog[]
+
+  @@map("users")
+}
+
+// ============================================================
+// CLIENTES
+// ============================================================
+
+model Client {
+  id           String   @id @default(uuid())
+  type         String   @default("PF") // PF | PJ
+  name         String
+  company      String?
+  cpf_cnpj     String?  @unique
+  email        String?
+  phone        String?
+  address      String?  // rua / logradouro
+  addressNumber String? @map("address_number")
+  complement   String?
+  cep          String?
+  city         String?
+  state        String?  @default("SP")
+  notes        String?
+  active       Boolean  @default(true)
+
+  // Empresa vinculada posteriormente (ex.: cliente PF que abriu uma empresa).
+  // Mantém o histórico de leads/propostas/projetos no mesmo registro de cliente.
+  linkedCompanyName String?  @map("linked_company_name")
+  linkedCompanyCnpj String?  @unique @map("linked_company_cnpj")
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relações
+  contacts     Contact[]
+  leads        Lead[]
+  proposals    Proposal[]
+  projects     Project[]
+  portalUsers  User[]       @relation("ClientUser")
+  clientFiles  ClientFile[]
+
+  @@map("clients")
+}
+
+// ============================================================
+// CONTATOS (múltiplos por cliente)
+// ============================================================
+
+model Contact {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  name      String
+  role      String?  // cargo/função
+  email     String?
+  phone     String?
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+// ============================================================
+// LEADS (funil comercial)
+// ============================================================
+
+model Lead {
+  id              String     @id @default(uuid())
+  clientId        String     @map("client_id")
+  title           String     // ex: "Cobertura Metálica - Galpão SP"
+  serviceType     String?    @map("service_type") // ex: "estrutura_metalica"
+  estimatedValue  Decimal?   @map("estimated_value") @db.Decimal(12, 2)
+  status          LeadStatus @default(contato_inicial)
+  priority        Int        @default(2) // 1=alta, 2=normal, 3=baixa
+  expectedCloseAt DateTime?  @map("expected_close_at")
+  lostReason      String?    @map("lost_reason")
+  notes           String?
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  // Relações
+  client          Client       @relation(fields: [clientId], references: [id])
+  interactions    Interaction[]
+  proposals       Proposal[]
+
+  @@map("leads")
+}
+
+// ============================================================
+// INTERAÇÕES (histórico de contatos)
+// ============================================================
+
+model Interaction {
+  id          String   @id @default(uuid())
+  leadId      String   @map("lead_id")
+  userId      String   @map("user_id")
+  type        String   // ligacao | email | reuniao | visita | whatsapp | outro
+  description String
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+  nextAction  String?  @map("next_action")
+  nextActionAt DateTime? @map("next_action_at")
+
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("interactions")
+}
+
+// ============================================================
+// PROPOSTAS
+// ============================================================
+
+model Proposal {
+  id              String         @id @default(uuid())
+  leadId          String         @map("lead_id")
+  clientId        String         @map("client_id")
+  code            String         @unique // ex: "PROP-2024-001"
+  title           String
+  status          ProposalStatus @default(rascunho)
+  totalValue      Decimal        @map("total_value") @db.Decimal(12, 2)
+  validUntil      DateTime?      @map("valid_until")
+  notes           String?
+  approvedAt      DateTime?      @map("approved_at")
+  rejectedAt      DateTime?      @map("rejected_at")
+  rejectionReason String?        @map("rejection_reason")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relações
+  lead            Lead           @relation(fields: [leadId], references: [id])
+  client          Client         @relation(fields: [clientId], references: [id])
+  items           ProposalItem[]
+  project         Project?
+
+  @@map("proposals")
+}
+
+// ============================================================
+// ITENS DA PROPOSTA
+// ============================================================
+
+model ProposalItem {
+  id          String   @id @default(uuid())
+  proposalId  String   @map("proposal_id")
+  description String
+  unit        String?  // m², m, un, vb
+  quantity    Decimal  @db.Decimal(10, 3)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(12, 2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(12, 2)
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("proposal_items")
+}
+
+// ============================================================
+// BIBLIOTECA DE ESCOPOS (templates reutilizáveis)
+// ============================================================
+
+model ScopeTemplate {
+  id          String   @id @default(uuid())
+  category    String   // estrutura_metalica | pre_moldado | galpao | gabiao | etc
+  name        String
+  description String
+  unit        String?
+  basePrice   Decimal? @map("base_price") @db.Decimal(12, 2)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("scope_templates")
+}
+
+// ============================================================
+// PROJETOS
+// ============================================================
+
+model Project {
+  id              String        @id @default(uuid())
+  clientId        String        @map("client_id")
+  proposalId      String?       @unique @map("proposal_id")
+  code            String        @unique // ex: "OBR-2024-001"
+  name            String
+  serviceType     String?       @map("service_type")
+  status          ProjectStatus @default(aguardando_inicio)
+  contractValue   Decimal       @map("contract_value") @db.Decimal(12, 2)
+  startDate       DateTime?     @map("start_date")
+  expectedEndDate DateTime?     @map("expected_end_date")
+  actualEndDate   DateTime?     @map("actual_end_date")
+  address         String?
+  city            String?
+  state           String?
+  notes           String?
+  folderUrl       String?       @map("folder_url")   // Link da pasta central do projeto
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relações
+  client          Client           @relation(fields: [clientId], references: [id])
+  proposal        Proposal?        @relation(fields: [proposalId], references: [id])
+  milestones      ProjectMilestone[]
+  logs            ProjectLog[]
+  checklists      ProjectChecklist[]
+  technicalDocs   TechnicalDoc[]
+  clientFiles     ClientFile[]
+  paymentSchedule PaymentSchedule[]
+
+  @@map("projects")
+}
+
+// ============================================================
+// MARCOS DO PROJETO (milestones)
+// ============================================================
+
+model ProjectMilestone {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  name        String
+  description String?
+  dueDate     DateTime? @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  sortOrder   Int       @default(0) @map("sort_order")
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_milestones")
+}
+
+// ============================================================
+// DIÁRIO DE OBRA (logs)
+// ============================================================
+
+model ProjectLog {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  userId      String   @map("user_id")
+  date        DateTime @default(now())
+  description String
+  weather     String?  // sol | nublado | chuva | etc
+  workers     Int?     // quantidade de trabalhadores
+  photos      String[] // array de storage_path / URLs
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("project_logs")
+}
+
+// ============================================================
+// CHECKLISTS DE PROJETO
+// ============================================================
+
+model ProjectChecklist {
+  id        String          @id @default(uuid())
+  projectId String          @map("project_id")
+  name      String
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+
+  @@map("project_checklists")
+}
+
+model ChecklistItem {
+  id          String           @id @default(uuid())
+  checklistId String           @map("checklist_id")
+  description String
+  completed   Boolean          @default(false)
+  completedAt DateTime?        @map("completed_at")
+  sortOrder   Int              @default(0) @map("sort_order")
+
+  checklist   ProjectChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_items")
+}
+
+// ============================================================
+// DOCUMENTOS TÉCNICOS
+// ============================================================
+
+model TechnicalDoc {
+  id           String    @id @default(uuid())
+  projectId    String    @map("project_id")
+  type         DocType
+  name         String
+  description  String?
+  storagePath  String?     @map("storage_path") // Supabase Storage
+  linkExterno  String?     @map("link_externo")  // Google Drive, etc
+  fileSize     Int?        @map("file_size")     // bytes
+  uploadedAt   DateTime    @default(now()) @map("uploaded_at")
+  expiresAt    DateTime?   @map("expires_at")    // validade ART/RRT
+  status       DocStatus   @default(a_iniciar)
+  priority     DocPriority @default(media)
+  version      String?     // ex: "v1.0", "Rev. A"
+  dueDate      DateTime?   @map("due_date")
+  assignedTo   String?     @map("assigned_to")  // nome do responsável
+
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("technical_docs")
+}
+
+// ============================================================
+// PARCELAS DE PAGAMENTO (controle financeiro)
+// ============================================================
+
+model PaymentSchedule {
+  id              String        @id @default(uuid())
+  projectId       String        @map("project_id")
+  description     String        // ex: "Sinal", "Medição 1", "Entrega Final"
+  dueDate         DateTime?     @map("due_date")
+  expectedValue   Decimal       @map("expected_value") @db.Decimal(12, 2)
+  receivedValue   Decimal       @default(0) @map("received_value") @db.Decimal(12, 2)
+  status          PaymentStatus @default(pendente)
+  paidAt          DateTime?     @map("paid_at")
+  notes           String?
+  sortOrder       Int           @default(0) @map("sort_order")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("payment_schedule")
+}
+
+// ============================================================
+// SOLICITAÇÕES DE CADASTRO (self-registration portal)
+// ============================================================
+
+// ============================================================
+// ARQUIVOS RECEBIDOS DE CLIENTES
+// ============================================================
+
+model ClientFile {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  clientId    String   @map("client_id")
+  name        String
+  storagePath String   @map("storage_path")
+  fileSize    Int?     @map("file_size")
+  mimeType    String?  @map("mime_type")
+  uploadedAt  DateTime @default(now()) @map("uploaded_at")
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_files")
+}
+
+// ============================================================
+// RESET DE SENHA
+// ============================================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}
+
+// ============================================================
+// GASTOS DO ESCRITÓRIO
+// ============================================================
+
+model OfficeExpense {
+  id              String          @id @default(uuid())
+  description     String
+  category        ExpenseCategory
+  value           Decimal         @db.Decimal(12, 2)
+  referenceDate   DateTime        @map("reference_date") // mês/ano de referência
+  notes           String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@map("office_expenses")
+}
+
+model ClientRequest {
+  id         String   @id @default(uuid())
+  email      String
+  type       String   @default("PF")   // PF | PJ
+  name       String                    // nome pessoal ou nome da empresa
+  company    String?                   // razão social (PJ)
+  cpf_cnpj   String?
+  phone      String?
+  status     String   @default("pending") // pending | approved | rejected
+  notes      String?  // motivo da rejeição, se houver
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+
+  @@map("client_requests")
+}
