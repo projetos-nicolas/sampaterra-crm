@@ -17,6 +17,7 @@ import {
 } from "@react-pdf/renderer";
 import { PORTFOLIO_IMGS } from "./portfolioAssets";
 import { COVER_IMGS } from "./coverAssets";
+import { EQUIP_IMGS } from "./equipAssets";
 
 // Desativa a hifenização automática (estava partindo "PROJETOS" em "PROJE-TOS")
 Font.registerHyphenationCallback((word) => [word]);
@@ -26,10 +27,11 @@ const brandXLeftAt = (y: number) => 407.6 - 0.147 * y;
 const BRAND_ORANGE_W = 133;
 const BRAND_GAP = 27;
 const BRAND_TEAL_W = 133;
-const BRAND_TEXT_COL_RIGHT = 270;
+const BRAND_TEXT_COL_RIGHT = 300;
 const BRAND_HERO_SIZE = 220;
 const BRAND_HERO_TOP = 56;
 const BRAND_HERO_LEFT = 545 - BRAND_HERO_SIZE;
+const HEX_SIZE = 78;
 
 // ─── Tipos Exportados ────────────────────────────────────────────────────────
 
@@ -63,13 +65,30 @@ export interface PropostaPDFData {
   valorTotal: number;
   pagamentos: PagamentoItem[];
   imagens: string[];
+  bankInfo?: BankInfo;
 }
+
+export interface BankInfo {
+  banco: string;
+  empresa: string;
+  cnpj: string;
+  agencia: string;
+  conta: string;
+}
+
+export const DEFAULT_BANK_INFO: BankInfo = {
+  banco: "INTER - 077",
+  empresa: "SAMPA TERRA CONSTRUÇÕES E ENGENHARIA LTDA",
+  cnpj: "31.092.160/0001-31",
+  agencia: "0001",
+  conta: "8402098-9",
+};
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
 
 const C = {
   teal:      "#1A1A1A",
-  tealDark:  "#0a3835",
+  tealDark:  "#000000",
   orange:    "#F5A623",
   white:     "#FFFFFF",
   gray50:    "#F9FAFB",
@@ -92,16 +111,16 @@ const s = StyleSheet.create({
   // capa
   coverPage:    { position: "relative" },
   coverBg:      { position: "absolute", top: 0, left: 0, width: 596, height: 840 },
-  coverShade:   { position: "absolute", top: 0, left: 0, width: 596, height: 840, backgroundColor: "#FFFFFF", opacity: 0.58 },
+  coverShade:   { position: "absolute", top: 0, left: 0, width: 596, height: 840, backgroundColor: "#FFFFFF", opacity: 0.2 },
   coverCenterWrap: { position: "absolute", left: 40, right: 40, top: 370 },
-  coverCenterBox:  { backgroundColor: C.tealDark, opacity: 0.93, paddingVertical: 28, paddingHorizontal: 26 },
+  coverCenterBox:  { backgroundColor: C.tealDark, opacity: 0.68, paddingVertical: 28, paddingHorizontal: 26 },
   coverTitle:      { color: C.white, fontSize: 19, fontFamily: "Helvetica-Bold", letterSpacing: 0.5, lineHeight: 1.35 },
   coverDivider:    { width: 46, height: 3, backgroundColor: C.orange, marginVertical: 12 },
   coverSubtitle:   { color: C.white, fontSize: 12.5, fontFamily: "Helvetica-Bold", letterSpacing: 0.5, opacity: 0.92 },
   coverBottom:      { position: "absolute", bottom: 0, left: 0, width: "100%", height: 96 },
   coverBottomBg:    { position: "absolute", bottom: 0, left: 0, width: "100%", height: 96 },
   coverBottomContent: { position: "absolute", bottom: 0, left: 0, height: 96, justifyContent: "center", paddingLeft: 44 },
-  coverLogoImg:     { width: 138, height: 20, marginBottom: 6 },
+  coverLogoText:    { color: C.white, fontSize: 17, fontFamily: "Helvetica-Bold", letterSpacing: 1, marginBottom: 6 },
   coverSiteText:    { color: C.white, fontSize: 9.5, fontFamily: "Helvetica", letterSpacing: 0.4 },
 
   // cabeçalho/rodapé das páginas de conteúdo
@@ -166,18 +185,21 @@ const s = StyleSheet.create({
 
   brandTextCol:   { width: BRAND_TEXT_COL_RIGHT - 50 },
   brandH1:        { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#1A1A1A", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 10 },
-  brandBody:      { fontSize: 8.6, color: C.gray700, lineHeight: 1.7, marginBottom: 8 },
+  brandBody:      { fontSize: 9.6, color: C.gray900, lineHeight: 1.85, marginBottom: 9 },
   brandHeroWrap:  { position: "absolute", top: BRAND_HERO_TOP, left: BRAND_HERO_LEFT },
 
-  brandFullCol:   { width: "100%", marginTop: 8 },
+  brandFullCol:   { width: "100%", marginTop: 18 },
 
-  hexRow:         { flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
-  hexItem:        { alignItems: "center" },
-  hexBar:         { width: 26, height: 2, backgroundColor: C.orange, marginTop: 7, marginBottom: 4 },
-  hexLabel:       { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: C.teal, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.4 },
-  // variante usada nos itens que caem sobre a faixa diagonal colorida (contraste claro)
-  hexBarLight:    { width: 26, height: 2, backgroundColor: C.white, marginTop: 7, marginBottom: 4 },
-  hexLabelLight:  { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: C.white, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.4 },
+  hexRow:         { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
+  hexItem:        { alignItems: "center", width: 88 },
+  hexBar:         { width: 22, height: 2, backgroundColor: C.orange, marginTop: 7, marginBottom: 4 },
+  hexLabel:       { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: C.teal, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
+  // variante usada no item "Locação com Operador" — alto contraste sobre a faixa escura (preto/teal)
+  hexBarYellow:   { width: 22, height: 2, backgroundColor: "#FFC107", marginTop: 7, marginBottom: 4 },
+  hexLabelYellow: { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: "#FFC107", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
+  // selo circular (foto real de equipamento em destaque, recorte já circular)
+  hexCircleWrap:  { width: HEX_SIZE, height: HEX_SIZE, borderRadius: HEX_SIZE / 2, overflow: "hidden" },
+  hexCircleImg:   { width: "100%", height: "100%", objectFit: "cover" },
 
   // assinaturas
   signRow:      { flexDirection: "row", justifyContent: "space-between", marginTop: 28, gap: 20 },
@@ -204,7 +226,6 @@ function PageHeader({ code, title }: { code: string; title: string }) {
         <View style={s.pageHeaderBar} />
         <View>
           <Text style={s.pageHeaderName}>SAMPA TERRA</Text>
-          <Text style={s.pageHeaderSub}>ENGENHARIA E CONSTRUÇÕES</Text>
         </View>
       </View>
       <View>
@@ -219,7 +240,7 @@ function PageFooter() {
   return (
     <View style={s.pageFooter} fixed>
       <Text style={s.pageFooterText}>
-        SAMPA TERRA CONSTRUÇÕES E ENGENHARIA | contato@sampaterra.com | (11) 99207-7014
+        SAMPA TERRA | contato@sampaterra.com | (11) 99207-7014
       </Text>
       <Text
         style={s.pageFooterText}
@@ -235,11 +256,13 @@ function SectionBlock({
   section,
   pagamentos,
   valorTotal,
+  bankInfo,
 }: {
   number: number;
   section: PDFSection;
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  bankInfo?: BankInfo;
 }) {
   const lines = section.content.split("\n");
 
@@ -255,7 +278,7 @@ function SectionBlock({
 
       {/* Conteúdo */}
       {section.type === "pagamento" ? (
-        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} />
+        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} bankInfo={bankInfo} />
       ) : (
         lines.map((line, i) => {
           if (!line.trim()) return null;
@@ -278,10 +301,13 @@ function SectionBlock({
 function PaymentContent({
   pagamentos,
   valorTotal,
+  bankInfo,
 }: {
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  bankInfo?: BankInfo;
 }) {
+  const bi = bankInfo ?? DEFAULT_BANK_INFO;
   return (
     <View>
       <Text style={[s.bodyText, { marginBottom: 6 }]}>
@@ -316,11 +342,11 @@ function PaymentContent({
       <View style={s.bankBox}>
         <Text style={s.bankTitle}>Dados para Pagamento</Text>
         {[
-          ["Banco", "INTER - 077"],
-          ["Empresa", "SAMPA TERRA CONSTRUÇÕES E ENGENHARIA LTDA"],
-          ["CNPJ", "31.092.160/0001-31"],
-          ["Agência", "0001"],
-          ["Conta", "8402098-9"],
+          ["Banco", bi.banco],
+          ["Empresa", bi.empresa],
+          ["CNPJ", bi.cnpj],
+          ["Agência", bi.agencia],
+          ["Conta", bi.conta],
         ].map(([k, v], i) => (
           <View key={i} style={s.bankRow}>
             <Text style={s.bankKey}>{k}:</Text>
@@ -421,7 +447,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <CoverArrowBanner />
           </View>
           <View style={s.coverBottomContent}>
-            <PDFImage src={COVER_IMGS.logo} style={s.coverLogoImg} />
+            <Text style={s.coverLogoText}>SAMPA TERRA</Text>
             <Text style={s.coverSiteText}>www.sampaterra.com.br</Text>
           </View>
         </View>
@@ -432,9 +458,9 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         {/* faixas diagonais decorativas (geometria medida no material de marca) */}
         <BrandDiagonalBands />
 
-        {/* foto do engenheiro recortada em hexágono, alinhada ao canto superior direito */}
+        {/* foto de máquina Sampa Terra em operação, recortada em hexágono, canto superior direito */}
         <View style={s.brandHeroWrap} fixed>
-          <HexImage src={PORTFOLIO_IMGS.quemSomos} size={BRAND_HERO_SIZE} />
+          <HexImage src={EQUIP_IMGS.locacaoMaquinas} size={BRAND_HERO_SIZE} />
         </View>
 
         <View style={s.brandInner}>
@@ -442,7 +468,6 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <View style={s.brandLogoBar} />
             <View>
               <Text style={s.brandLogoText}>SAMPA TERRA</Text>
-              <Text style={s.brandLogoSub}>ENGENHARIA E CONSTRUÇÕES</Text>
             </View>
           </View>
 
@@ -450,51 +475,40 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
           <View style={s.brandTextCol}>
             <Text style={s.brandH1}>Quem Somos</Text>
             <Text style={s.brandBody}>
-              Contratar a Sampa Terra é garantir inteligência aplicada à engenharia.
-              Nosso foco é otimizar cada etapa do seu projeto estrutural, proporcionando
-              redução de custos em materiais essenciais, como aço e concreto, sem abrir
-              mão da segurança máxima.
+              A Sampa Terra é referência no mercado em terraplanagem e locação de
+              máquinas, contando com equipamentos modernos e operadores qualificados,
+              garantindo uma execução rápida, segura e eficiente em cada projeto.
             </Text>
             <Text style={s.brandBody}>
-              Contamos com uma equipe de engenheiros e calculistas altamente qualificados
-              que utilizam tecnologias avançadas para oferecer suporte contínuo e
-              personalizado. Estamos prontos para ser o braço direito de construtoras
-              e investidores, assegurando agilidade na entrega e compromisso total com
-              o resultado final.
+              Atuamos com frota própria e equipe especializada, prontos para atender
+              construtoras e investidores com agilidade na entrega e compromisso total
+              com o resultado final de cada obra.
             </Text>
           </View>
 
-          {/* Obras e Projetos — heading/parágrafos na mesma coluna estreita; grid de hexágonos em largura cheia */}
+          {/* Serviços — heading/parágrafo na mesma coluna estreita; grid de hexágonos em largura cheia */}
           <View style={s.brandFullCol}>
             <View style={s.brandTextCol}>
-              <Text style={s.brandH1}>Obras e Projetos</Text>
+              <Text style={s.brandH1}>Nossos Serviços</Text>
               <Text style={s.brandBody}>
-                O portfólio da Sampa Terra é o reflexo do nosso compromisso com a precisão
-                técnica e a viabilidade construtiva. Ao longo da nossa trajetória,
-                consolidamos nossa expertise em uma ampla gama de projetos, que vão
-                desde complexos industriais e galpões de grande porte até reformas
-                estruturais detalhadas.
-              </Text>
-              <Text style={s.brandBody}>
-                Cada obra realizada carrega nossa assinatura de eficiência: projetos
-                estruturais otimizados que geram economia real de insumos e um
-                acompanhamento rigoroso que garante que a visão do cliente seja
-                fielmente traduzida na obra pronta.
+                Da terraplanagem à demolição, oferecemos a máquina e o operador certos
+                para cada etapa da obra — com equipamentos modernos e equipe própria
+                qualificada.
               </Text>
             </View>
 
-            {/* Grid de fotos de portfólio em hexágono */}
+            {/* Grid de fotos reais de equipamentos/serviços — usa toda a largura útil da página */}
             <View style={s.hexRow}>
               {([
-                { img: PORTFOLIO_IMGS.concreto,     label: "CONCRETO ARMADO",      onBand: false },
-                { img: PORTFOLIO_IMGS.metalica,     label: "METÁLICA",             onBand: false },
-                { img: PORTFOLIO_IMGS.alvenaria,    label: "ALVENARIA ESTRUTURAL", onBand: true },
-                { img: PORTFOLIO_IMGS.prefabricado, label: "PRÉ-FABRICADO",        onBand: true },
-              ] as { img: string; label: string; onBand: boolean }[]).map(({ img, label, onBand }) => (
-                <View key={label} style={s.hexItem}>
-                  <HexImage src={img} size={100} />
-                  <View style={onBand ? s.hexBarLight : s.hexBar} />
-                  <Text style={onBand ? s.hexLabelLight : s.hexLabel}>{label}</Text>
+                { img: EQUIP_IMGS.terraplanagem,   label: "TERRAPLANAGEM",          variant: "dark" as const },
+                { img: EQUIP_IMGS.demolicao,       label: "DEMOLIÇÃO",              variant: "dark" as const },
+                { img: EQUIP_IMGS.locacaoMaquinas, label: "LOCAÇÃO DE MÁQUINAS",    variant: "dark" as const },
+                { img: EQUIP_IMGS.locacaoOperador, label: "LOCAÇÃO COM OPERADOR",   variant: "yellow" as const },
+              ]).map((item) => (
+                <View key={item.label} style={s.hexItem}>
+                  <HexImage src={item.img} size={HEX_SIZE} />
+                  <View style={item.variant === "yellow" ? s.hexBarYellow : s.hexBar} />
+                  <Text style={item.variant === "yellow" ? s.hexLabelYellow : s.hexLabel}>{item.label}</Text>
                 </View>
               ))}
             </View>
@@ -558,6 +572,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             section={section}
             pagamentos={data.pagamentos}
             valorTotal={data.valorTotal}
+            bankInfo={data.bankInfo}
           />
         ))}
 

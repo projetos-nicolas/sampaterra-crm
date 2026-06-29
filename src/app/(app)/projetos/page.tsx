@@ -44,6 +44,10 @@ function ModalNovoProjeto({ onClose, onSuccess }: { onClose: () => void; onSucce
     { value: "muro_gabiao", label: "Muro de Gabião" },
     { value: "cobertura_metalica", label: "Cobertura Metálica" },
     { value: "galpao", label: "Galpão" },
+    { value: "demolicao", label: "Demolição" },
+    { value: "movimentacao_terra", label: "Movimentação de Terra" },
+    { value: "caminhoes_retirada_terra", label: "Caminhões de Retirada de Terra" },
+    { value: "locacao_maquina", label: "Locação de Máquina" },
     { value: "outro", label: "Outro" },
   ];
 

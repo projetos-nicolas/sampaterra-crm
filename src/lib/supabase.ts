@@ -13,6 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const STORAGE_BUCKETS = {
   DOCUMENTOS: "documentos-tecnicos",
   FOTOS_OBRA: "fotos-obra",
+  FROTA: "frota",
 } as const;
 
 export function getPublicUrl(bucket: string, path: string): string {
@@ -28,11 +29,11 @@ export async function uploadFile(
   const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: false,
   });
-  if (error) throw new Error(`Upload falhou: ${error.message}`);
+  if (error) throw new Error("Upload falhou: " + error.message);
   return data.path;
 }
 
 export async function deleteFile(bucket: string, path: string): Promise<void> {
   const { error } = await supabase.storage.from(bucket).remove([path]);
-  if (error) throw new Error(`Delete falhou: ${error.message}`);
+  if (error) throw new Error("Delete falhou: " + error.message);
 }

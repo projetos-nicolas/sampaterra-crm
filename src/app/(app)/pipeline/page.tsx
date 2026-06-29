@@ -55,7 +55,9 @@ const REACTIVATE_OPTIONS: { status: LeadStatus; label: string }[] = [
 const SERVICE_TYPES = [
   "Alvenaria Estrutural","Concreto Armado","Edifício Comercial Pré-moldado",
   "Expansão Industrial","Estrutura Metálica","Cobertura Metálica",
-  "Galpão","Muro de Gabião","Fundação","Reforma Estrutural","Outro",
+  "Galpão","Muro de Gabião","Fundação","Reforma Estrutural",
+  "Demolição","Movimentação de Terra","Caminhões de Retirada de Terra","Locação de Máquina",
+  "Outro",
 ];
 
 const SERVICE_BADGE: Record<string, string> = {
@@ -68,6 +70,10 @@ const SERVICE_BADGE: Record<string, string> = {
   "Galpão":              "bg-[#1A1A1A]/10 text-[#1A1A1A]",
   "Muro de Gabião":      "bg-green-100 text-green-700",
   "Fundação":            "bg-yellow-100 text-yellow-700",
+  "Demolição":           "bg-red-100 text-red-700",
+  "Movimentação de Terra": "bg-amber-100 text-amber-700",
+  "Caminhões de Retirada de Terra": "bg-amber-100 text-amber-700",
+  "Locação de Máquina":  "bg-teal-100 text-teal-700",
 };
 
 type ProposalData = {

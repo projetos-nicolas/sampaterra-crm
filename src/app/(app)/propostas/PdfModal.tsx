@@ -3,7 +3,8 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
-import type { PDFSection, PagamentoItem } from "@/lib/pdf/PropostaPDF";
+import type { PDFSection, PagamentoItem, BankInfo } from "@/lib/pdf/PropostaPDF";
+import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
 
 const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
   ssr: false,
@@ -159,6 +160,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     }));
   });
 
+  const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
   const [imagens, setImagens] = useState<string[]>([]);
   const imgRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"secoes" | "pagamento" | "imagens" | "preview">("secoes");
@@ -190,7 +192,8 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     valorTotal: proposal.totalValue,
     pagamentos,
     imagens,
-  }), [proposal, client, clientAddress, sections, pagamentos, imagens]);
+    bankInfo,
+  }), [proposal, client, clientAddress, sections, pagamentos, imagens, bankInfo]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -497,6 +500,60 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                   Total: {brl(totalPag)}
                 </div>
               </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">Dados Bancários</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Exibidos no PDF, no quadro "Dados para Pagamento".
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-gray-500">Empresa</label>
+                    <input
+                      type="text"
+                      value={bankInfo.empresa}
+                      onChange={(e) => setBankInfo((p) => ({ ...p, empresa: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Banco</label>
+                    <input
+                      type="text"
+                      value={bankInfo.banco}
+                      onChange={(e) => setBankInfo((p) => ({ ...p, banco: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">CNPJ</label>
+                    <input
+                      type="text"
+                      value={bankInfo.cnpj}
+                      onChange={(e) => setBankInfo((p) => ({ ...p, cnpj: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Agência</label>
+                    <input
+                      type="text"
+                      value={bankInfo.agencia}
+                      onChange={(e) => setBankInfo((p) => ({ ...p, agencia: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Conta</label>
+                    <input
+                      type="text"
+                      value={bankInfo.conta}
+                      onChange={(e) => setBankInfo((p) => ({ ...p, conta: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -554,4 +611,11 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           {tab === "preview" && (
             <div style={{ height: "70vh" }}>
               <PDFPreviewPanel data={pdfData} />
-   
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}

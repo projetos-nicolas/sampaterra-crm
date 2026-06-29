@@ -129,6 +129,18 @@ const NAV: NavSection[] = [
           </svg>
         ),
       },
+      {
+        href: "/frota",
+        label: "Frota",
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <rect x="1" y="7" width="13" height="9" rx="1" />
+            <path d="M14 10h4l3 3v3h-7z" />
+            <circle cx="5" cy="18" r="1.6" />
+            <circle cx="17" cy="18" r="1.6" />
+          </svg>
+        ),
+      },
     ],
   },
 ];
@@ -164,7 +176,7 @@ export function Sidebar() {
       >
       {/* Logo */}
       <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3 flex-shrink-0">
-        <SampaTerraLogo variant="azul-quadrado" height={36} />
+        <SampaTerraLogo variant="azul-quadrado" height={56} />
         <button
           onClick={close}
           className="ml-auto text-white/60 hover:text-white md:hidden"
