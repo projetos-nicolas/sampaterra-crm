@@ -98,6 +98,13 @@ enum ExpenseCategory {
   outros
 }
 
+enum MachineStatus {
+  disponivel
+  em_locacao
+  em_manutencao
+  inativa
+}
+
 // ============================================================
 // USUÁRIOS (sistema interno)
 // ============================================================
@@ -157,6 +164,7 @@ model Client {
   projects     Project[]
   portalUsers  User[]       @relation("ClientUser")
   clientFiles  ClientFile[]
+  machineRentals MachineRental[]
 
   @@map("clients")
 }
@@ -202,6 +210,7 @@ model Lead {
   client          Client       @relation(fields: [clientId], references: [id])
   interactions    Interaction[]
   proposals       Proposal[]
+  machineRentals  MachineRental[]
 
   @@map("leads")
 }
@@ -251,6 +260,7 @@ model Proposal {
   client          Client         @relation(fields: [clientId], references: [id])
   items           ProposalItem[]
   project         Project?
+  machineRentals  MachineRental[]
 
   @@map("proposals")
 }
@@ -514,4 +524,65 @@ model ClientRequest {
   updatedAt  DateTime @updatedAt      @map("updated_at")
 
   @@map("client_requests")
+}
+
+// ============================================================
+// FROTA — MÁQUINAS, MANUTENÇÕES E LOCAÇÕES
+// ============================================================
+
+model Machine {
+  id          String        @id @default(uuid())
+  name        String        // ex: "Escavadeira Hidráulica CAT 320"
+  category    String?       // ex: escavadeira | caminhao | rolo_compactador | retroescavadeira
+  plateOrCode String?       @map("plate_or_code") // placa ou código de patrimônio
+  brand       String?
+  model       String?
+  year        Int?
+  photoPath   String?       @map("photo_path") // foto fixa da máquina — Supabase Storage
+  status      MachineStatus @default(disponivel)
+  notes       String?
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  maintenances MachineMaintenance[]
+  rentals      MachineRental[]
+
+  @@map("machines")
+}
+
+model MachineMaintenance {
+  id          String   @id @default(uuid())
+  machineId   String   @map("machine_id")
+  date        DateTime @default(now())
+  performedBy String   @map("performed_by") // texto livre — quem fez a manutenção
+  description String   // o que foi feito
+  cost        Decimal? @db.Decimal(12, 2)
+  photos      String[] // storage paths das fotos da manutenção
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("machine_maintenances")
+}
+
+model MachineRental {
+  id         String    @id @default(uuid())
+  machineId  String    @map("machine_id")
+  proposalId String?   @map("proposal_id")
+  leadId     String?   @map("lead_id")
+  clientId   String?   @map("client_id")
+  title      String    // ex: nome do cliente/obra
+  startDate  DateTime  @map("start_date")
+  endDate    DateTime  @map("end_date")
+  notes      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  machine    Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  proposal   Proposal? @relation(fields: [proposalId], references: [id])
+  lead       Lead?     @relation(fields: [leadId], references: [id])
+  client     Client?   @relation(fields: [clientId], references: [id])
+
+  @@map("machine_rentals")
 }
