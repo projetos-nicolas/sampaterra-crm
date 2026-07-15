@@ -115,6 +115,10 @@ export const proposalsRouter = createTRPCRouter({
               cep: true,
               city: true,
               state: true,
+              contacts: {
+                select: { id: true, name: true, role: true, email: true, phone: true, isPrimary: true },
+                orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+              },
             },
           },
           lead: { select: { id: true, title: true } },

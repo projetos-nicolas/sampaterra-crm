@@ -162,6 +162,13 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
 
   const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
   const [imagens, setImagens] = useState<string[]>([]);
+  const contacts: any[] = (client as any).contacts ?? [];
+  // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
+  const primaryContact = contacts.find((c: any) => c.isPrimary) ?? null;
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(
+    primaryContact?.id ?? null
+  );
+  const selectedContact = contacts.find((c: any) => c.id === selectedContactId) ?? null;
   const imgRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"secoes" | "pagamento" | "imagens" | "preview">("secoes");
   const [downloading, setDownloading] = useState(false);
@@ -183,8 +190,11 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     clientName: client.name,
     clientCompany: client.company || undefined,
     clientCnpj: client.cpf_cnpj || undefined,
-    clientPhone: client.phone || undefined,
-    clientEmail: client.email || undefined,
+    // Se um contato foi selecionado, usa os dados dele; caso contrário usa o cliente
+    clientPhone: (selectedContact?.phone || client.phone) || undefined,
+    clientEmail: (selectedContact?.email || client.email) || undefined,
+    clientContactName: selectedContact ? selectedContact.name : undefined,
+    clientContactRole: selectedContact?.role || undefined,
     clientAddress: clientAddress || undefined,
     sections: sections
       .filter((s) => s.enabled)
@@ -193,7 +203,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     pagamentos,
     imagens,
     bankInfo,
-  }), [proposal, client, clientAddress, sections, pagamentos, imagens, bankInfo]);
+  }), [proposal, client, clientAddress, sections, pagamentos, imagens, bankInfo, selectedContact]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -435,17 +445,38 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                     Valor total: <strong className="text-[#1A1A1A]">{brl(proposal.totalValue)}</strong>
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    setPagamentos((p) => [
-                      ...p,
-                      { descricao: "Parcela " + (p.length + 1), valor: 0, ordem: p.length + 1 },
-                    ])
-                  }
-                  className="px-3 py-1.5 text-sm bg-[#1A1A1A] text-white rounded-lg hover:bg-[#0a3835] transition-colors"
-                >
-                  + Parcela
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const n = pagamentos.length + 1;
+                      const pct = parseFloat((100 / n).toFixed(4));
+                      const newVal = parseFloat((proposal.totalValue * pct / 100).toFixed(2));
+                      const equal = parseFloat((proposal.totalValue / n).toFixed(2));
+                      // Redistribuir igualmente
+                      setPagamentos((prev) => {
+                        const updated = [...prev, { descricao: "Parcela " + n, valor: equal, ordem: n }];
+                        const totalFixed = updated.slice(0, -1).reduce((s, p) => s + parseFloat((proposal.totalValue / n).toFixed(2)), 0);
+                        const last = parseFloat((proposal.totalValue - totalFixed).toFixed(2));
+                        return updated.map((p, i) => i === updated.length - 1 ? { ...p, valor: last } : { ...p, valor: parseFloat((proposal.totalValue / n).toFixed(2)) });
+                      });
+                    }}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                    title="Distribuir valor igualmente entre as parcelas"
+                  >
+                    = Igualar
+                  </button>
+                  <button
+                    onClick={() =>
+                      setPagamentos((p) => [
+                        ...p,
+                        { descricao: "Parcela " + (p.length + 1), valor: 0, ordem: p.length + 1 },
+                      ])
+                    }
+                    className="px-3 py-1.5 text-sm bg-[#1A1A1A] text-white rounded-lg hover:bg-[#0a3835] transition-colors"
+                  >
+                    + Parcela
+                  </button>
+                </div>
               </div>
               {diff && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
@@ -453,51 +484,130 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                 </div>
               )}
               <div className="space-y-3">
-                {pagamentos.map((p, i) => (
-                  <div key={i} className="flex gap-3 items-start flex-wrap sm:flex-nowrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-xs text-gray-500">Descrição</label>
-                      <input
-                        type="text"
-                        value={p.descricao}
-                        onChange={(e) =>
-                          setPagamentos((prev) =>
-                            prev.map((pp, ii) => (ii === i ? { ...pp, descricao: e.target.value } : pp))
-                          )
-                        }
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
-                      />
-                    </div>
-                    <div className="w-full sm:w-40">
-                      <label className="text-xs text-gray-500">Valor (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={p.valor}
-                        onChange={(e) =>
-                          setPagamentos((prev) =>
-                            prev.map((pp, ii) =>
-                              ii === i ? { ...pp, valor: parseFloat(e.target.value) || 0 } : pp
+                {pagamentos.map((p, i) => {
+                  const pct = proposal.totalValue > 0 ? (p.valor / proposal.totalValue) * 100 : 0;
+                  return (
+                    <div key={i} className="flex gap-2 items-end flex-wrap sm:flex-nowrap">
+                      <div className="flex-1 min-w-[180px]">
+                        <label className="text-xs text-gray-500">Descrição</label>
+                        <input
+                          type="text"
+                          value={p.descricao}
+                          onChange={(e) =>
+                            setPagamentos((prev) =>
+                              prev.map((pp, ii) => (ii === i ? { ...pp, descricao: e.target.value } : pp))
                             )
-                          )
-                        }
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
-                      />
+                          }
+                          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label className="text-xs text-gray-500">%</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={parseFloat(pct.toFixed(4))}
+                          onChange={(e) => {
+                            const newPct = parseFloat(e.target.value) || 0;
+                            const newVal = parseFloat((proposal.totalValue * newPct / 100).toFixed(2));
+                            setPagamentos((prev) =>
+                              prev.map((pp, ii) => ii === i ? { ...pp, valor: newVal } : pp)
+                            );
+                          }}
+                          className="mt-1 w-full rounded-lg border border-[#F5A623]/60 bg-[#F5A623]/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 text-center font-semibold"
+                        />
+                      </div>
+                      <div className="w-36">
+                        <label className="text-xs text-gray-500">Valor (R$)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={p.valor}
+                          onChange={(e) =>
+                            setPagamentos((prev) =>
+                              prev.map((pp, ii) =>
+                                ii === i ? { ...pp, valor: parseFloat(e.target.value) || 0 } : pp
+                              )
+                            )
+                          }
+                          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setPagamentos((prev) => prev.filter((_, ii) => ii !== i))}
+                        className="mb-0.5 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setPagamentos((prev) => prev.filter((_, ii) => ii !== i))}
-                      className="mt-5 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  Total %: <span className={`font-semibold ${Math.abs(pagamentos.reduce((s,p)=>s+(proposal.totalValue>0?(p.valor/proposal.totalValue)*100:0),0)-100)>0.1?"text-yellow-600":"text-green-600"}`}>
+                    {pagamentos.reduce((s,p)=>s+(proposal.totalValue>0?(p.valor/proposal.totalValue)*100:0),0).toFixed(1)}%
+                  </span>
+                </p>
                 <div className={"text-sm font-semibold px-4 py-2 rounded-lg " + (diff ? "bg-yellow-100 text-yellow-700" : "bg-[#1A1A1A]/10 text-[#1A1A1A]")}>
                   Total: {brl(totalPag)}
+                </div>
+              </div>
+
+              {/* Seletor de contato */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">Contato na Proposta</h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  Escolha quem entrou em contato — nome e dados aparecerão no PDF.
+                </p>
+                <div className="space-y-2">
+                  {/* Opção: dados do cliente (sem contato específico) */}
+                  <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors hover:bg-gray-50"
+                    style={{ borderColor: selectedContactId === null ? "#1A1A1A" : "#e5e7eb", background: selectedContactId === null ? "#1A1A1A08" : "" }}
+                  >
+                    <input
+                      type="radio"
+                      name="contact"
+                      checked={selectedContactId === null}
+                      onChange={() => setSelectedContactId(null)}
+                      className="accent-[#1A1A1A]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{client.company || client.name}</p>
+                      <p className="text-xs text-gray-400">Dados gerais do cliente</p>
+                    </div>
+                  </label>
+                  {contacts.map((c: any) => (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors hover:bg-gray-50"
+                      style={{ borderColor: selectedContactId === c.id ? "#1A1A1A" : "#e5e7eb", background: selectedContactId === c.id ? "#1A1A1A08" : "" }}
+                    >
+                      <input
+                        type="radio"
+                        name="contact"
+                        checked={selectedContactId === c.id}
+                        onChange={() => setSelectedContactId(c.id)}
+                        className="accent-[#1A1A1A]"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                          {c.isPrimary && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-[#F5A623]/15 text-[#b8680e] rounded-full">Principal</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400">{[c.role, c.email, c.phone].filter(Boolean).join(" · ")}</p>
+                      </div>
+                    </label>
+                  ))}
+                  {contacts.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">Nenhum contato cadastrado para este cliente.</p>
+                  )}
                 </div>
               </div>
 

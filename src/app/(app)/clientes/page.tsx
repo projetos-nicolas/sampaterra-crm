@@ -176,6 +176,164 @@ function ProjectCard({ project, onUpdated }: { project: any; onUpdated: () => vo
   );
 }
 
+// ─── Seção de Contatos ────────────────────────────────────────────────────────
+
+type ContactForm = { name: string; role: string; email: string; phone: string; isPrimary: boolean; };
+
+function ContactsSection({ client, onUpdated }: { client: any; onUpdated: () => void }) {
+  const contacts: any[] = client.contacts ?? [];
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ContactForm>({ name: "", role: "", email: "", phone: "", isPrimary: false });
+  const [err, setErr] = useState("");
+
+  const createContact = trpc.clients.createContact.useMutation({
+    onSuccess: () => { onUpdated(); setAdding(false); setErr(""); setForm({ name: "", role: "", email: "", phone: "", isPrimary: false }); },
+    onError: (e) => setErr(e.message),
+  });
+  const updateContact = trpc.clients.updateContact.useMutation({
+    onSuccess: () => { onUpdated(); setEditingId(null); setErr(""); },
+    onError: (e) => setErr(e.message),
+  });
+  const deleteContact = trpc.clients.deleteContact.useMutation({
+    onSuccess: () => onUpdated(),
+  });
+
+  const f = (k: keyof ContactForm, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]";
+
+  function ContactFormFields({ value, onChange }: { value: ContactForm; onChange: (k: keyof ContactForm, v: any) => void }) {
+    return (
+      <div className="space-y-2 mt-2">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome *</label>
+          <input value={value.name} onChange={e => onChange("name", e.target.value)} required className={inputCls} placeholder="Nome do contato"/>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cargo / Função</label>
+            <input value={value.role} onChange={e => onChange("role", e.target.value)} className={inputCls} placeholder="Engenheiro, Gerente..."/>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Telefone</label>
+            <input value={value.phone} onChange={e => onChange("phone", maskPhone(e.target.value))} className={inputCls} placeholder="(11) 99999-0000"/>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">E-mail</label>
+          <input type="email" value={value.email} onChange={e => onChange("email", e.target.value)} className={inputCls} placeholder="contato@empresa.com"/>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" checked={value.isPrimary} onChange={e => onChange("isPrimary", e.target.checked)} className="accent-[#1A1A1A] w-4 h-4"/>
+          Contato principal
+        </label>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 pt-4 border-t border-gray-100">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider">Contatos ({contacts.length})</span>
+        {!adding && (
+          <button
+            onClick={() => { setAdding(true); setEditingId(null); setForm({ name: "", role: "", email: "", phone: "", isPrimary: contacts.length === 0 }); setErr(""); }}
+            className="text-xs font-semibold text-[#1A1A1A] hover:bg-[#1A1A1A]/5 px-2 py-1 rounded-lg transition"
+          >
+            + Adicionar
+          </button>
+        )}
+      </div>
+
+      {/* Lista de contatos */}
+      <div className="space-y-2">
+        {contacts.map((c: any) => (
+          <div key={c.id} className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+            {editingId === c.id ? (
+              <div>
+                <ContactFormFields
+                  value={form}
+                  onChange={(k, v) => setForm(p => ({ ...p, [k]: v }))}
+                />
+                {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => { setEditingId(null); setErr(""); }} className="flex-1 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">Cancelar</button>
+                  <button
+                    onClick={() => {
+                      if (!form.name.trim()) { setErr("Informe o nome."); return; }
+                      updateContact.mutate({ id: c.id, clientId: client.id, name: form.name.trim(), role: form.role || null, email: form.email || null, phone: form.phone || null, isPrimary: form.isPrimary });
+                    }}
+                    disabled={updateContact.isPending}
+                    className="flex-1 py-1.5 text-xs bg-[#F5A623] hover:bg-[#F7BB52] text-white rounded-lg transition disabled:opacity-60"
+                  >
+                    {updateContact.isPending ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                    {c.isPrimary && (
+                      <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-[#F5A623]/15 text-[#b8680e] rounded-full">Principal</span>
+                    )}
+                  </div>
+                  {c.role && <p className="text-xs text-gray-400">{c.role}</p>}
+                  <div className="flex flex-wrap gap-x-3 mt-0.5">
+                    {c.phone && <p className="text-xs text-gray-500">{maskPhone(c.phone)}</p>}
+                    {c.email && <p className="text-xs text-gray-500 truncate">{c.email}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => { setEditingId(c.id); setAdding(false); setErr(""); setForm({ name: c.name, role: c.role ?? "", email: c.email ?? "", phone: c.phone ? maskPhone(c.phone) : "", isPrimary: c.isPrimary }); }}
+                    className="p-1 text-gray-400 hover:text-[#1A1A1A] rounded transition"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Remover o contato "${c.name}"?`)) deleteContact.mutate({ id: c.id }); }}
+                    disabled={deleteContact.isPending}
+                    className="p-1 text-red-400 hover:text-red-600 rounded transition disabled:opacity-50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {contacts.length === 0 && !adding && (
+          <p className="text-xs text-gray-400">Nenhum contato cadastrado. Adicione os responsáveis deste cliente.</p>
+        )}
+      </div>
+
+      {/* Formulário de novo contato */}
+      {adding && (
+        <div className="mt-2 bg-gray-50 rounded-lg px-3 py-3 border border-dashed border-gray-200">
+          <p className="text-xs font-semibold text-gray-600 mb-1">Novo contato</p>
+          <ContactFormFields value={form} onChange={f} />
+          {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => { setAdding(false); setErr(""); }} className="flex-1 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">Cancelar</button>
+            <button
+              onClick={() => {
+                if (!form.name.trim()) { setErr("Informe o nome."); return; }
+                createContact.mutate({ clientId: client.id, name: form.name.trim(), role: form.role || undefined, email: form.email || undefined, phone: form.phone || undefined, isPrimary: form.isPrimary });
+              }}
+              disabled={createContact.isPending}
+              className="flex-1 py-1.5 text-xs bg-[#F5A623] hover:bg-[#F7BB52] text-white rounded-lg transition disabled:opacity-60"
+            >
+              {createContact.isPending ? "Salvando..." : "Adicionar"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmpresaVinculadaSection({ client, onUpdated }: { client: any; onUpdated: () => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.linkedCompanyName ?? "");
@@ -346,6 +504,7 @@ function ClientPanel({ clientId, onClose, onUpdated, onDeleted, isAdmin }: { cli
                   ))}
                 </dl>
 
+                <ContactsSection client={client} onUpdated={refetch} />
                 <EmpresaVinculadaSection client={client} onUpdated={refetch} />
 
                 <div className="mt-5 pt-4 border-t border-gray-100">

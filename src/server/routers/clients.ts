@@ -123,6 +123,68 @@ export const clientsRouter = createTRPCRouter({
       });
     }),
 
+  // ── CONTATOS ─────────────────────────────────────────────────────────────────
+
+  createContact: protectedProcedure
+    .input(
+      z.object({
+        clientId: z.string().uuid(),
+        name: z.string().min(1),
+        role: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
+        phone: z.string().optional(),
+        isPrimary: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Se isPrimary, remove flag de outros contatos do mesmo cliente
+      if (input.isPrimary) {
+        await ctx.prisma.contact.updateMany({
+          where: { clientId: input.clientId },
+          data: { isPrimary: false },
+        });
+      }
+      return ctx.prisma.contact.create({
+        data: {
+          clientId: input.clientId,
+          name: input.name,
+          role: input.role || undefined,
+          email: input.email || undefined,
+          phone: input.phone || undefined,
+          isPrimary: input.isPrimary ?? false,
+        },
+      });
+    }),
+
+  updateContact: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        clientId: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        role: z.string().optional().nullable(),
+        email: z.string().email().optional().or(z.literal("")).nullable(),
+        phone: z.string().optional().nullable(),
+        isPrimary: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, clientId, ...data } = input;
+      if (data.isPrimary) {
+        await ctx.prisma.contact.updateMany({
+          where: { clientId, NOT: { id } },
+          data: { isPrimary: false },
+        });
+      }
+      return ctx.prisma.contact.update({ where: { id }, data });
+    }),
+
+  deleteContact: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.contact.delete({ where: { id: input.id } });
+    }),
+
   // Exclui o cliente definitivamente. Bloqueia se houver leads, propostas ou
   // projetos vinculados — o admin precisa removê-los primeiro (use as
   // exclusões de lead/proposta/projeto). Contatos e arquivos são removidos
