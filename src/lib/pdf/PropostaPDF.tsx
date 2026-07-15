@@ -50,12 +50,20 @@ export interface PagamentoItem {
   ordem: number;
 }
 
-export interface ImageItem {
+/** Uma imagem posicionada na página — coordenadas em % da área de conteúdo (0-100) */
+export interface ImageSlot {
   src: string;
   caption: string;
-  /** full ≈ 100% da largura útil | large ≈ 75% | medium ≈ 50% | small ≈ 35% */
-  size: "full" | "large" | "medium" | "small";
-  align: "left" | "center" | "right";
+  x: number; // left %
+  y: number; // top %
+  w: number; // width %
+  h: number; // height %
+}
+
+/** Uma página de imagens — pode conter múltiplos slots posicionados livremente */
+export interface ImagePage {
+  id: string;
+  slots: ImageSlot[];
 }
 
 export interface PropostaPDFData {
@@ -78,7 +86,7 @@ export interface PropostaPDFData {
   pagamentos: PagamentoItem[];
   /** Texto livre exibido abaixo da tabela de parcelas e antes dos dados bancários */
   paymentNotes?: string;
-  imagens: ImageItem[];
+  imagens: ImagePage[];
   bankInfo?: BankInfo;
 }
 
@@ -331,7 +339,7 @@ function PaymentContent({
 }) {
   const bi = bankInfo ?? DEFAULT_BANK_INFO;
   return (
-    <View>
+    <View wrap={false}>
       <Text style={[s.bodyText, { marginBottom: 6 }]}>
         Pela execução dos serviços, o CONTRATANTE pagará o valor de{" "}
         <Text style={{ fontFamily: "Helvetica-Bold", color: C.teal }}>
@@ -620,29 +628,44 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         <PageFooter />
       </Page>
 
-      {/* ── PÁGINAS DE IMAGENS (página normal com header/footer) ── */}
-      {data.imagens.map((img, i) => {
-        const widthMap = { full: 499, large: 374, medium: 249, small: 175 };
-        const imgW = widthMap[img.size] ?? 499;
-        const alignMap: Record<string, "flex-start" | "center" | "flex-end"> = {
-          left: "flex-start", center: "center", right: "flex-end",
-        };
-        return (
-          <Page key={`img-${i}`} size="A4" style={[s.page, s.imagePage]}>
-            <PageHeader code={data.code} title={data.title} />
-            <View style={[s.imgPageInner, { alignItems: alignMap[img.align] ?? "center" }]}>
-              <PDFImage
-                src={img.src}
-                style={{ width: imgW, maxHeight: 600, objectFit: "contain" }}
-              />
-              {img.caption ? (
-                <Text style={[s.imgCaption, { width: imgW }]}>{img.caption}</Text>
-              ) : null}
-            </View>
-            <PageFooter />
-          </Page>
-        );
-      })}
+      {/* ── PÁGINAS DE IMAGENS (múltiplas imagens por página, posicionamento livre) ── */}
+      {data.imagens.map((page, pi) => (
+        <Page key={`img-${pi}`} size="A4" style={[s.page, s.imagePage]}>
+          <PageHeader code={data.code} title={data.title} />
+          {/* Área de conteúdo: 499 × 640 pt — mesmas proporções do editor visual */}
+          <View style={{ position: "relative", width: 499, height: 640 }}>
+            {page.slots.map((slot, si) => {
+              const slotW = slot.w / 100 * 499;
+              const slotH = slot.h / 100 * 640;
+              const captionH = slot.caption ? 16 : 0;
+              return (
+                <View
+                  key={si}
+                  style={{
+                    position: "absolute",
+                    left: slot.x / 100 * 499,
+                    top: slot.y / 100 * 640,
+                    width: slotW,
+                    height: slotH,
+                    flexDirection: "column",
+                  }}
+                >
+                  <PDFImage
+                    src={slot.src}
+                    style={{ width: slotW, height: slotH - captionH, objectFit: "contain" }}
+                  />
+                  {slot.caption ? (
+                    <Text style={[s.imgCaption, { width: slotW, marginTop: 2 }]}>
+                      {slot.caption}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+          <PageFooter />
+        </Page>
+      ))}
 
       {/* ── ASSINATURAS ── */}
       <Page size="A4" style={[s.page, s.signPage]}>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
-import type { PDFSection, PagamentoItem, BankInfo, ImageItem } from "@/lib/pdf/PropostaPDF";
+import type { PDFSection, PagamentoItem, BankInfo, ImageSlot, ImagePage } from "@/lib/pdf/PropostaPDF";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
 
 const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
@@ -140,6 +140,187 @@ export function PdfModal({ proposalId, onClose }: Props) {
   return <PdfEditor proposal={proposal} onClose={onClose} />;
 }
 
+// ─── Editor Visual de Imagens ─────────────────────────────────────────────────
+
+const CANVAS_W = 390;
+const CANVAS_H = Math.round(CANVAS_W * 640 / 499); // ≈ 500 — proporção da área de conteúdo no PDF
+
+interface DragState {
+  slotIdx: number;
+  action: "move" | "resize";
+  startX: number;
+  startY: number;
+  startSlot: ImageSlot;
+}
+
+function ImagePageEditor({
+  page,
+  pageIdx,
+  total,
+  onUpdate,
+  onDelete,
+  onAddSlots,
+}: {
+  page: ImagePage;
+  pageIdx: number;
+  total: number;
+  onUpdate: (pi: number, newPage: ImagePage) => void;
+  onDelete: (pi: number) => void;
+  onAddSlots: (pi: number, srcs: string[]) => void;
+}) {
+  const [selSlot, setSelSlot] = useState<number | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const pageRef = useRef(page);
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const { slotIdx, action, startX, startY, startSlot } = dragRef.current;
+      const dx = (e.clientX - startX) / CANVAS_W * 100;
+      const dy = (e.clientY - startY) / CANVAS_H * 100;
+      const cur = pageRef.current;
+      const newSlots = cur.slots.map((s, i) => {
+        if (i !== slotIdx) return s;
+        if (action === "move") {
+          return { ...s, x: Math.max(0, Math.min(100 - startSlot.w, startSlot.x + dx)), y: Math.max(0, Math.min(100 - startSlot.h, startSlot.y + dy)) };
+        }
+        return { ...s, w: Math.max(8, Math.min(100 - startSlot.x, startSlot.w + dx)), h: Math.max(8, Math.min(100 - startSlot.y, startSlot.h + dy)) };
+      });
+      onUpdateRef.current(pageIdx, { ...cur, slots: newSlots });
+    };
+    const onUp = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [pageIdx]);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const addFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const srcs: string[] = new Array(files.length);
+    let done = 0;
+    files.forEach((f, fi) => {
+      const r = new FileReader();
+      r.onload = (ev) => {
+        srcs[fi] = ev.target?.result as string;
+        if (++done === files.length) onAddSlots(pageIdx, srcs);
+      };
+      r.readAsDataURL(f);
+    });
+    e.target.value = "";
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      {/* Cabeçalho da página */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+        <span className="text-sm font-semibold text-gray-700">Página {pageIdx + 1} de {total}</span>
+        <div className="flex items-center gap-2">
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFiles} className="hidden" />
+          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#F5A623] text-white rounded-lg hover:bg-[#d89016] transition">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+            Inserir imagem
+          </button>
+          <button onClick={() => onDelete(pageIdx)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="Excluir página">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16" /></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas WYSIWYG */}
+      <div className="p-4 flex justify-center bg-gray-200">
+        <div
+          className="relative bg-white shadow-xl select-none overflow-hidden"
+          style={{ width: CANVAS_W, height: CANVAS_H, cursor: "default" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setSelSlot(null); }}
+        >
+          {/* Grade de referência */}
+          <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.04) 1px,transparent 1px)", backgroundSize: "30px 30px" }} />
+
+          {page.slots.map((slot, si) => {
+            const l = slot.x / 100 * CANVAS_W;
+            const t = slot.y / 100 * CANVAS_H;
+            const w = slot.w / 100 * CANVAS_W;
+            const h = slot.h / 100 * CANVAS_H;
+            const isSel = selSlot === si;
+            return (
+              <div
+                key={si}
+                className={`absolute ${isSel ? "ring-2 ring-[#F5A623] ring-offset-0 z-10" : "ring-1 ring-gray-300 z-0 hover:ring-[#F5A623]/60"}`}
+                style={{ left: l, top: t, width: w, height: h, cursor: "move" }}
+                onClick={(e) => { e.stopPropagation(); setSelSlot(si); }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setSelSlot(si);
+                  dragRef.current = { slotIdx: si, action: "move", startX: e.clientX, startY: e.clientY, startSlot: { ...slot } };
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={slot.src} alt="" className="w-full h-full object-contain pointer-events-none" />
+                {slot.caption && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1.5 py-0.5 truncate pointer-events-none">{slot.caption}</div>
+                )}
+                {isSel && (
+                  <>
+                    {/* Botão excluir */}
+                    <button
+                      className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md z-20"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onUpdate(pageIdx, { ...pageRef.current, slots: pageRef.current.slots.filter((_, j) => j !== si) }); setSelSlot(null); }}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    {/* Handle resize (canto inferior direito) */}
+                    <div
+                      className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-[#F5A623] rounded-sm cursor-se-resize shadow z-20"
+                      onMouseDown={(e) => { e.stopPropagation(); dragRef.current = { slotIdx: si, action: "resize", startX: e.clientX, startY: e.clientY, startSlot: { ...slot } }; }}
+                    />
+                    {/* Handles resize nos outros cantos */}
+                    <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-[#F5A623]/70 rounded-sm z-20" />
+                    <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#F5A623]/70 rounded-sm z-20" />
+                    <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-[#F5A623]/70 rounded-sm z-20" />
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          {page.slots.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm gap-2 pointer-events-none">
+              <svg className="w-10 h-10 opacity-20" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              Clique em "Inserir imagem"
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Editor de legenda do slot selecionado */}
+      {selSlot !== null && page.slots[selSlot] && (
+        <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-3">
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide shrink-0">Legenda</label>
+          <input
+            type="text"
+            value={page.slots[selSlot].caption}
+            onChange={(e) => {
+              const cur = pageRef.current;
+              onUpdateRef.current(pageIdx, { ...cur, slots: cur.slots.map((s, i) => i === selSlot ? { ...s, caption: e.target.value } : s) });
+            }}
+            placeholder="Descrição opcional da imagem..."
+            className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5A623]/50"
+          />
+          <span className="text-xs text-gray-400 shrink-0">Imagem {selSlot + 1}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Editor Principal ─────────────────────────────────────────────────────────
+
 function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }) {
   const client = proposal.client;
 
@@ -163,7 +344,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
   const [paymentNotes, setPaymentNotes] = useState("");
   const [obraAddress, setObraAddress] = useState("");
-  const [imagens, setImagens] = useState<ImageItem[]>([]);
+  const [imagePages, setImagePages] = useState<ImagePage[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
   const primaryContact = contacts.find((c: any) => c.isPrimary) ?? null;
@@ -171,7 +352,6 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     primaryContact?.id ?? null
   );
   const selectedContact = contacts.find((c: any) => c.id === selectedContactId) ?? null;
-  const imgRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"secoes" | "pagamento" | "imagens" | "preview">("secoes");
   const [downloading, setDownloading] = useState(false);
 
@@ -205,9 +385,9 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     valorTotal: proposal.totalValue,
     pagamentos,
     paymentNotes: paymentNotes.trim() || undefined,
-    imagens,
+    imagens: imagePages,
     bankInfo,
-  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagens, bankInfo, selectedContact]);
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -238,31 +418,27 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const expandSec = (id: string) =>
     setSections((p) => p.map((s) => (s.id === id ? { ...s, expanded: !s.expanded } : s)));
 
-  const addImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    Array.from(e.target.files || []).forEach((f) => {
-      const r = new FileReader();
-      r.onload = (ev) => setImagens((p) => [...p, {
-        src: ev.target?.result as string,
-        caption: "",
-        size: "full",
-        align: "center",
-      }]);
-      r.readAsDataURL(f);
-    });
-    e.target.value = "";
-  };
+  const handlePageUpdate = useCallback((pi: number, newPage: ImagePage) => {
+    setImagePages(p => p.map((pg, i) => i === pi ? newPage : pg));
+  }, []);
 
-  const updateImage = (i: number, patch: Partial<ImageItem>) =>
-    setImagens((p) => p.map((img, j) => j === i ? { ...img, ...patch } : img));
+  const handlePageDelete = useCallback((pi: number) => {
+    setImagePages(p => p.filter((_, i) => i !== pi));
+  }, []);
 
-  const moveImage = (i: number, dir: -1 | 1) =>
-    setImagens((p) => {
-      const next = [...p];
-      const j = i + dir;
-      if (j < 0 || j >= next.length) return p;
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+  const handleAddSlots = useCallback((pi: number, srcs: string[]) => {
+    setImagePages(p => p.map((pg, i) => {
+      if (i !== pi) return pg;
+      const offset = pg.slots.length * 5;
+      const newSlots: ImageSlot[] = srcs.map((src, si) => ({
+        src, caption: "",
+        x: Math.min(offset + si * 5, 20),
+        y: Math.min(offset + si * 5, 20),
+        w: 60, h: 55,
+      }));
+      return { ...pg, slots: [...pg.slots, ...newSlots] };
+    }));
+  }, []);
 
   const totalPag = pagamentos.reduce((s, p) => s + p.valor, 0);
   const diff = Math.abs(totalPag - proposal.totalValue) > 0.5;
@@ -337,9 +513,9 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
               }
             >
               {t.label}
-              {t.id === "imagens" && imagens.length > 0 && (
+              {t.id === "imagens" && imagePages.length > 0 && (
                 <span className="ml-1.5 text-xs bg-[#F5A623] text-white rounded-full px-1.5 py-0.5">
-                  {imagens.length}
+                  {imagePages.length}
                 </span>
               )}
             </button>
@@ -719,140 +895,33 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
 
           {/* Imagens */}
           {tab === "imagens" && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs text-gray-500">Cada imagem vira uma página no PDF — com cabeçalho, rodapé e legenda opcional.</p>
-                <input ref={imgRef} type="file" accept="image/*" multiple onChange={addImage} className="hidden" />
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">Arraste imagens para posicionar · canto <span className="font-semibold text-[#F5A623]">■</span> para redimensionar · clique para selecionar e editar legenda.</p>
                 <button
-                  onClick={() => imgRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-lg hover:bg-[#333] transition-colors shrink-0 ml-4"
+                  onClick={() => setImagePages(p => [...p, { id: "pg_" + Date.now(), slots: [] }])}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-semibold rounded-lg hover:bg-[#333] transition shrink-0 ml-4"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>Adicionar</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                  Nova página
                 </button>
               </div>
-              {imagens.length === 0 ? (
+              {imagePages.length === 0 ? (
                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center text-gray-400 text-sm">
-                  Nenhuma imagem adicionada ainda.
+                  Crie uma página e insira imagens para compor o PDF.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {imagens.map((img, i) => (
-                    <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                      <div className="flex gap-4 p-4">
-                        {/* Preview */}
-                        <div className="relative shrink-0 w-40 h-28 bg-gray-100 rounded-lg overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img.src} alt={"img" + i} className="w-full h-full object-contain" />
-                          <span className="absolute top-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-                            {i + 1}
-                          </span>
-                        </div>
-                        {/* Controles */}
-                        <div className="flex-1 min-w-0 space-y-3">
-                          {/* Legenda */}
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Legenda</label>
-                            <input
-                              type="text"
-                              value={img.caption}
-                              onChange={(e) => updateImage(i, { caption: e.target.value })}
-                              placeholder="Descrição opcional da imagem..."
-                              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
-                            />
-                          </div>
-                          {/* Tamanho */}
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamanho</label>
-                            <div className="mt-1 flex gap-1.5 flex-wrap">
-                              {([
-                                { v: "full", l: "Cheia" },
-                                { v: "large", l: "Grande" },
-                                { v: "medium", l: "Média" },
-                                { v: "small", l: "Pequena" },
-                              ] as const).map(({ v, l }) => (
-                                <button
-                                  key={v}
-                                  type="button"
-                                  onClick={() => updateImage(i, { size: v })}
-                                  className={
-                                    "px-3 py-1 text-xs font-medium rounded-lg border transition " +
-                                    (img.size === v
-                                      ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
-                                      : "bg-white text-gray-600 border-gray-200 hover:border-[#1A1A1A]")
-                                  }
-                                >
-                                  {l}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          {/* Alinhamento (só aparece se não for cheia) */}
-                          {img.size !== "full" && (
-                            <div>
-                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Posição</label>
-                              <div className="mt-1 flex gap-1.5">
-                                {([
-                                  { v: "left", l: "Esquerda" },
-                                  { v: "center", l: "Centro" },
-                                  { v: "right", l: "Direita" },
-                                ] as const).map(({ v, l }) => (
-                                  <button
-                                    key={v}
-                                    type="button"
-                                    onClick={() => updateImage(i, { align: v })}
-                                    className={
-                                      "px-3 py-1 text-xs font-medium rounded-lg border transition " +
-                                      (img.align === v
-                                        ? "bg-[#F5A623] text-white border-[#F5A623]"
-                                        : "bg-white text-gray-600 border-gray-200 hover:border-[#F5A623]")
-                                    }
-                                  >
-                                    {l}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        {/* Ações */}
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <button
-                            onClick={() => moveImage(i, -1)}
-                            disabled={i === 0}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition"
-                            title="Mover para cima"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => moveImage(i, 1)}
-                            disabled={i === imagens.length - 1}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition"
-                            title="Mover para baixo"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setImagens((p) => p.filter((_, j) => j !== i))}
-                            className="mt-auto p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Remover"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                imagePages.map((page, pi) => (
+                  <ImagePageEditor
+                    key={page.id}
+                    page={page}
+                    pageIdx={pi}
+                    total={imagePages.length}
+                    onUpdate={handlePageUpdate}
+                    onDelete={handlePageDelete}
+                    onAddSlots={handleAddSlots}
+                  />
+                ))
               )}
             </div>
           )}
