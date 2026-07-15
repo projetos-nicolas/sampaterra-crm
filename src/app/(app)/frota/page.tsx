@@ -62,6 +62,28 @@ function ManutencaoTab() {
                 </div>
               </div>
 
+              {/* Banner de locação ativa */}
+              {m.rentals?.[0] && (
+                <div className="mt-3 -mx-1 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Em Locação</span>
+                  </div>
+                  <p className="text-xs font-semibold text-blue-800 truncate">{m.rentals[0].title}</p>
+                  {m.rentals[0].location && (
+                    <p className="text-[11px] text-blue-500 truncate">📍 {m.rentals[0].location}</p>
+                  )}
+                  {m.rentals[0].client && (
+                    <p className="text-[11px] text-blue-500 truncate">
+                      {m.rentals[0].client.company || m.rentals[0].client.name}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-blue-400 mt-0.5">
+                    até {new Date(m.rentals[0].endDate).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+              )}
+
               {/* Toggle de disponibilidade */}
               <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
                 <div className="text-xs text-gray-500">

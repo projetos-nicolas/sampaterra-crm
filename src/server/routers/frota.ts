@@ -54,11 +54,19 @@ export const frotaRouter = createTRPCRouter({
   listMachines: protectedProcedure
     .input(z.object({ includeInactive: z.boolean().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      const now = new Date();
       return ctx.prisma.machine.findMany({
         where: input?.includeInactive ? {} : { active: true },
         include: {
           _count: { select: { maintenances: true, rentals: true } },
           maintenances: { orderBy: { date: "desc" }, take: 1 },
+          rentals: {
+            where: { startDate: { lte: now }, endDate: { gte: now } },
+            take: 1,
+            include: {
+              client: { select: { id: true, name: true, company: true } },
+            },
+          },
         },
         orderBy: { name: "asc" },
       });
