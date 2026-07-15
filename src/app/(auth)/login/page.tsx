@@ -260,7 +260,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Hard redirect para garantir que o cookie de sessão seja lido na primeira navegação
+    window.location.href = "/dashboard";
   }
 
   return (

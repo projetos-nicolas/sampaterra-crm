@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { trpc } from "@/trpc/client";
-import { getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
+import { supabase, getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
 import { MachineModal, STATUS_LABEL } from "./MachineModal";
 import { MaintenanceModal } from "./MaintenanceModal";
 
@@ -30,10 +30,14 @@ function PreventiveModal({
   const [form, setForm] = useState({
     title: item?.title ?? "",
     description: item?.description ?? "",
+    requestedBy: item?.requestedBy ?? "",
     dueDate: item?.dueDate ? new Date(item.dueDate).toISOString().slice(0, 10) : "",
     intervalDays: item?.intervalDays ? String(item.intervalDays) : "",
   });
+  const [photoPath, setPhotoPath] = useState<string | null>(item?.photoPath ?? null);
+  const [uploading, setUploading] = useState(false);
   const [erro, setErro] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]";
 
@@ -51,11 +55,33 @@ function PreventiveModal({
 
   const isPending = createMut.isPending || updateMut.isPending || deleteMut.isPending;
 
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setErro("");
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `preventivas/${machineId}/${Date.now()}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKETS.FROTA)
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (error) throw error;
+      setPhotoPath(data.path);
+    } catch (e: any) {
+      setErro(`Falha ao enviar foto: ${e.message}`);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSave() {
     if (!form.title.trim()) { setErro("Informe o título da manutenção."); return; }
     const data = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
+      requestedBy: form.requestedBy.trim() || undefined,
+      photoPath: photoPath ?? null,
       dueDate: form.dueDate ? new Date(form.dueDate + "T12:00:00").toISOString() : null,
       intervalDays: form.intervalDays ? parseInt(form.intervalDays) : null,
     };
@@ -83,6 +109,10 @@ function PreventiveModal({
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Descrição</label>
             <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputCls} rows={2} placeholder="Detalhes do que deve ser feito..." />
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Solicitado por</label>
+            <input value={form.requestedBy} onChange={(e) => setForm((f) => ({ ...f, requestedBy: e.target.value }))} className={inputCls} placeholder="Nome de quem está solicitando" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data Prevista</label>
@@ -93,6 +123,32 @@ function PreventiveModal({
               <input value={form.intervalDays} onChange={(e) => setForm((f) => ({ ...f, intervalDays: e.target.value.replace(/\D/g, "") }))} className={inputCls} placeholder="Ex: 90" />
             </div>
           </div>
+
+          {/* Foto de referência */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Foto de Referência</label>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+            {photoPath ? (
+              <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group">
+                <img src={getPublicUrl(STORAGE_BUCKETS.FROTA, photoPath)} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setPhotoPath(null)}
+                  className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white text-xs font-bold"
+                >Remover</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="text-xs font-semibold text-[#1A1A1A] border border-[#1A1A1A]/30 rounded-lg px-3 py-1.5 hover:bg-[#1A1A1A]/5 disabled:opacity-50"
+              >
+                {uploading ? "Enviando..." : "+ Adicionar foto"}
+              </button>
+            )}
+          </div>
+
           {erro && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{erro}</div>}
         </div>
 
@@ -106,7 +162,7 @@ function PreventiveModal({
             >🗑</button>
           )}
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-lg hover:bg-gray-50">Cancelar</button>
-          <button onClick={handleSave} disabled={isPending} className="flex-1 py-2.5 bg-[#1A1A1A] text-white text-sm font-semibold rounded-lg hover:bg-[#2C2C2C] disabled:opacity-60">
+          <button onClick={handleSave} disabled={isPending || uploading} className="flex-1 py-2.5 bg-[#1A1A1A] text-white text-sm font-semibold rounded-lg hover:bg-[#2C2C2C] disabled:opacity-60">
             {isPending ? "Salvando..." : isEdit ? "Salvar" : "Criar"}
           </button>
         </div>

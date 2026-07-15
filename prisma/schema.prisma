@@ -600,6 +600,8 @@ model MachinePreventiveMaintenance {
   machineId    String    @map("machine_id")
   title        String    // ex: "Troca de óleo hidráulico"
   description  String?   // detalhes do que deve ser feito
+  requestedBy  String?   @map("requested_by") // quem solicitou
+  photoPath    String?   @map("photo_path")   // foto de referência — Supabase Storage
   dueDate      DateTime? @map("due_date")    // data prevista
   intervalDays Int?      @map("interval_days") // periodicidade em dias (opcional)
   done         Boolean   @default(false)
