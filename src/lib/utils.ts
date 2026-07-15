@@ -104,6 +104,12 @@ export function maskRG(value: string): string {
     .replace(/(\d{3})([\dXx]{1})$/, "$1-$2");
 }
 
+/** Aplica máscara CEP: 00000-000 */
+export function maskCEP(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 8);
+  return d.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
+}
+
 /** Formata CPF ou CNPJ para exibição (detecta pelo tamanho) */
 export function formatCpfCnpj(value: string | null | undefined): string {
   if (!value) return "";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/trpc/client";
-import { formatDate, maskCPF, maskCNPJ, maskPhone, formatCpfCnpj } from "@/lib/utils";
+import { formatDate, maskCPF, maskCNPJ, maskPhone, maskCEP, formatCpfCnpj } from "@/lib/utils";
 
 const ESTADOS_BR = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
@@ -57,7 +57,7 @@ function ClientForm({ initial, onSubmit, onCancel, isPending, submitLabel }: { i
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">CEP</label>
-          <input value={form.cep} onChange={e=>f("cep",e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="00000-000"/>
+          <input value={form.cep} onChange={e=>f("cep", maskCEP(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="00000-000"/>
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Rua / Logradouro</label>
@@ -431,7 +431,7 @@ function ClientPanel({ clientId, onClose, onUpdated, onDeleted, isAdmin }: { cli
   const totalRecebido = allPayments.filter((p:any)=>p.status==="pago"||p.status==="parcial").reduce((s:number,p:any)=>s+parseFloat(p.receivedValue??0),0);
   const totalAReceber = totalContratado - totalRecebido;
 
-  const formInitial: ClientFormData = { type:client.type as "PF"|"PJ", name:client.name, company:client.company??"", cpf_cnpj:formatCpfCnpj(client.cpf_cnpj), email:client.email??"", phone:client.phone ? maskPhone(client.phone) : "", cep:client.cep??"", address:client.address??"", addressNumber:client.addressNumber??"", complement:client.complement??"", city:client.city??"", state:client.state??"SP", notes:client.notes??"" };
+  const formInitial: ClientFormData = { type:client.type as "PF"|"PJ", name:client.name, company:client.company??"", cpf_cnpj:formatCpfCnpj(client.cpf_cnpj), email:client.email??"", phone:client.phone ? maskPhone(client.phone) : "", cep:client.cep ? maskCEP(client.cep) : "", address:client.address??"", addressNumber:client.addressNumber??"", complement:client.complement??"", city:client.city??"", state:client.state??"SP", notes:client.notes??"" };
 
   return (
     <div className="fixed inset-0 z-30 sm:static sm:z-auto w-full sm:w-[420px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
@@ -496,7 +496,7 @@ function ClientPanel({ clientId, onClose, onUpdated, onDeleted, isAdmin }: { cli
                   </button>
                 </div>
                 <dl className="space-y-2.5">
-                  {[{label:"Nome",value:client.name},...(client.company?[{label:"Razão Social",value:client.company}]:[]),...(client.cpf_cnpj?[{label:client.type==="PJ"?"CNPJ":"CPF",value:formatCpfCnpj(client.cpf_cnpj),mono:true}]:[]),...(client.email?[{label:"E-mail",value:client.email}]:[]),...(client.phone?[{label:"Telefone",value:maskPhone(client.phone)}]:[]),...(client.cep?[{label:"CEP",value:client.cep,mono:true}]:[]),...(client.address?[{label:"Endereço",value:[client.address,client.addressNumber,client.complement].filter(Boolean).join(", ")}]:[]),...(client.city?[{label:"Localização",value:`${client.city} / ${client.state}`}]:[]),...(client.notes?[{label:"Obs.",value:client.notes}]:[])].map((row:any)=>(
+                  {[{label:"Nome",value:client.name},...(client.company?[{label:"Razão Social",value:client.company}]:[]),...(client.cpf_cnpj?[{label:client.type==="PJ"?"CNPJ":"CPF",value:formatCpfCnpj(client.cpf_cnpj),mono:true}]:[]),...(client.email?[{label:"E-mail",value:client.email}]:[]),...(client.phone?[{label:"Telefone",value:maskPhone(client.phone)}]:[]),...(client.cep?[{label:"CEP",value:maskCEP(client.cep),mono:true}]:[]),...(client.address?[{label:"Endereço",value:[client.address,client.addressNumber,client.complement].filter(Boolean).join(", ")}]:[]),...(client.city?[{label:"Localização",value:`${client.city} / ${client.state}`}]:[]),...(client.notes?[{label:"Obs.",value:client.notes}]:[])].map((row:any)=>(
                     <div key={row.label} className="flex gap-2">
                       <dt className="w-24 text-xs text-gray-400 flex-shrink-0 pt-0.5">{row.label}</dt>
                       <dd className={`text-sm text-gray-800 font-medium ${row.mono?"font-mono":""}`}>{row.value}</dd>
