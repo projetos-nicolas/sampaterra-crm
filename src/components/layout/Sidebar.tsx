@@ -176,7 +176,7 @@ export function Sidebar() {
       >
       {/* Logo */}
       <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3 flex-shrink-0">
-        <SampaTerraLogo variant="azul-quadrado" height={56} />
+        <SampaTerraLogo variant="azul-quadrado" height={72} />
         <button
           onClick={close}
           className="ml-auto text-white/60 hover:text-white md:hidden"

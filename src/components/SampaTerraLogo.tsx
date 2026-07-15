@@ -14,28 +14,22 @@ interface SampaTerraLogoProps {
 }
 
 /**
- * Logo oficial da Sampa Terra (ícone de escavadeira + wordmark "SAMPA"),
- * arquivo em /public/logo-sampaterra.png. A imagem é preta sobre fundo
- * transparente; em variantes "sobre fundo escuro" aplicamos um filtro CSS
- * (invert) para deixar o desenho branco e legível sobre o fundo escuro,
- * sem precisar de um segundo arquivo de imagem.
+ * Logo oficial da Sampa Terra — versão amarela sobre fundo escuro.
+ * Arquivo: /public/logo amarelo sampa.jpeg
  */
 export function SampaTerraLogo({
   variant = "azul-quadrado",
-  height = 48,
+  height = 56,
   className = "",
 }: SampaTerraLogoProps) {
-  const onDark = variant === "azul-quadrado" || variant === "texto-branco";
-
   return (
     <img
-      src="/logo-sampaterra.png"
+      src="/logo-sampa-amarelo.jpeg"
       alt="Sampa Terra"
       className={`flex-shrink-0 object-contain ${className}`}
       style={{
         height,
         width: "auto",
-        filter: onDark ? "invert(1) brightness(1.1)" : "none",
       }}
     />
   );
