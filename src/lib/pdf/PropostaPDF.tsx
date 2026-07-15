@@ -42,6 +42,8 @@ export interface PDFSection {
   title: string;
   content: string;
   type: SectionType;
+  /** Se true, inicia esta seção numa nova página */
+  pageBreakBefore?: boolean;
 }
 
 export interface PagamentoItem {
@@ -295,7 +297,7 @@ function SectionBlock({
   const lines = section.content.split("\n");
 
   return (
-    <View style={{ marginBottom: 14 }}>
+    <View style={{ marginBottom: 14 }} break={section.pageBreakBefore === true}>
       {/* Título */}
       <View style={s.sectionRow} wrap={false}>
         <Text style={s.sectionNum}>{number}.</Text>
@@ -339,7 +341,7 @@ function PaymentContent({
 }) {
   const bi = bankInfo ?? DEFAULT_BANK_INFO;
   return (
-    <View wrap={false}>
+    <View>
       {/* Condições de Pagamento — antes das parcelas */}
       {paymentNotes && paymentNotes.trim() ? (
         <View style={{ marginBottom: 10, padding: 9, backgroundColor: C.gray50, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: C.orange }}>
@@ -360,7 +362,7 @@ function PaymentContent({
         , conforme parcelas abaixo:
       </Text>
 
-      <View style={s.payTable}>
+      <View style={s.payTable} wrap={false}>
         <View style={s.payHead}>
           <Text style={[s.payHeadCell, { flex: 0.4 }]}>#</Text>
           <Text style={[s.payHeadCell, { flex: 3 }]}>Descrição / Condição</Text>
@@ -381,7 +383,7 @@ function PaymentContent({
         </View>
       </View>
 
-      <View style={s.bankBox}>
+      <View style={s.bankBox} wrap={false}>
         <Text style={s.bankTitle}>Dados para Pagamento</Text>
         {[
           ["Banco", bi.banco],

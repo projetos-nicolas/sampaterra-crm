@@ -22,6 +22,7 @@ const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
 interface EditableSection extends PDFSection {
   enabled: boolean;
   expanded: boolean;
+  pageBreakBefore: boolean;
 }
 
 function buildDefaultSections(scopeText: string): EditableSection[] {
@@ -34,6 +35,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "escopo",
@@ -42,6 +44,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "metodologia",
@@ -51,6 +54,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "prazos",
@@ -60,6 +64,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "pagamento",
@@ -68,6 +73,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "pagamento",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "obrig_contratante",
@@ -77,6 +83,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "obrig_contratada",
@@ -86,6 +93,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "vigencia",
@@ -94,6 +102,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "multas",
@@ -103,6 +112,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
     {
       id: "foro",
@@ -111,6 +121,7 @@ function buildDefaultSections(scopeText: string): EditableSection[] {
       type: "text",
       enabled: true,
       expanded: false,
+      pageBreakBefore: false,
     },
   ];
 }
@@ -381,7 +392,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     obraAddress: obraAddress.trim() || undefined,
     sections: sections
       .filter((s) => s.enabled)
-      .map(({ id, title, content, type }) => ({ id, title, content, type })),
+      .map(({ id, title, content, type, pageBreakBefore }) => ({ id, title, content, type, pageBreakBefore })),
     valorTotal: proposal.totalValue,
     pagamentos,
     paymentNotes: paymentNotes.trim() || undefined,
@@ -582,6 +593,17 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                       >
                         <span className={"absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform " + (sec.enabled ? "translate-x-5" : "")} />
                       </button>
+                      {/* Quebra de página antes desta seção */}
+                      <button
+                        onClick={() => updateSec(sec.id, "pageBreakBefore", !sec.pageBreakBefore)}
+                        title={sec.pageBreakBefore ? "Remover quebra de página" : "Iniciar em nova página"}
+                        className={"p-1 rounded transition-colors shrink-0 " + (sec.pageBreakBefore ? "text-[#F5A623] bg-[#F5A623]/10 hover:bg-[#F5A623]/20" : "text-gray-300 hover:text-gray-500 hover:bg-gray-100")}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          <line x1="3" y1="12" x2="21" y2="12" strokeDasharray="3 2" />
+                        </svg>
+                      </button>
                       <button
                         onClick={() => deleteSec(sec.id)}
                         className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
@@ -591,6 +613,12 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                         </svg>
                       </button>
                     </div>
+                    {sec.pageBreakBefore && sec.enabled && (
+                      <div className="mx-4 -mt-1 mb-1 flex items-center gap-1.5 text-[10px] text-[#F5A623] font-semibold">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" /></svg>
+                        Inicia em nova página
+                      </div>
+                    )}
                     {sec.expanded && (
                       <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
                         <div>
@@ -636,6 +664,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                       type: "text",
                       enabled: true,
                       expanded: true,
+                      pageBreakBefore: false,
                     },
                   ])
                 }
