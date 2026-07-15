@@ -311,7 +311,7 @@ function PaymentContent({
         {[
           ["Banco", "INTER - 077"],
           ["Empresa", "SAMPA TERRA CONSTRUCOES E ENGENHARIA LTDA"],
-          ["CNPJ", "31.092.160/0001-31"],
+          ["CNPJ", "45.134.708/0001-73"],
           ["Agência", "0001"],
           ["Conta", "8402098-9"],
         ].map(([k, v], i) => (
@@ -569,8 +569,8 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <View style={s.signLine} />
             <Text style={s.signLabel}>CONTRATADA</Text>
             <Text style={s.signSub}>SAMPA TERRA CONSTRUCOES E ENGENHARIA LTDA</Text>
-            <Text style={s.signSub}>CNPJ: 31.092.160/0001-31</Text>
-            <Text style={[s.signSub, { marginTop: 4 }]}>Engº Richard Lourenço · CREA 5069733050</Text>
+            <Text style={s.signSub}>CNPJ: 45.134.708/0001-73</Text>
+            <Text style={[s.signSub, { marginTop: 4 }]}>RUBENS FIGUEIREDO LOURENÇO</Text>
           </View>
           <View style={s.signBlock}>
             <View style={s.signLine} />
