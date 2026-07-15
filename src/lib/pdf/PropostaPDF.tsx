@@ -59,11 +59,15 @@ export interface PropostaPDFData {
   clientCnpj?: string;
   clientPhone?: string;
   clientEmail?: string;
+  clientContactName?: string;
+  clientContactRole?: string;
   clientAddress?: string;
   /** Apenas as seções habilitadas, em ordem — o PDF as numera 1..N */
   sections: PDFSection[];
   valorTotal: number;
   pagamentos: PagamentoItem[];
+  /** Texto livre exibido abaixo da tabela de parcelas e antes dos dados bancários */
+  paymentNotes?: string;
   imagens: string[];
   bankInfo?: BankInfo;
 }
@@ -256,12 +260,14 @@ function SectionBlock({
   section,
   pagamentos,
   valorTotal,
+  paymentNotes,
   bankInfo,
 }: {
   number: number;
   section: PDFSection;
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  paymentNotes?: string;
   bankInfo?: BankInfo;
 }) {
   const lines = section.content.split("\n");
@@ -278,7 +284,7 @@ function SectionBlock({
 
       {/* Conteúdo */}
       {section.type === "pagamento" ? (
-        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} bankInfo={bankInfo} />
+        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} paymentNotes={paymentNotes} bankInfo={bankInfo} />
       ) : (
         lines.map((line, i) => {
           if (!line.trim()) return null;
@@ -301,10 +307,12 @@ function SectionBlock({
 function PaymentContent({
   pagamentos,
   valorTotal,
+  paymentNotes,
   bankInfo,
 }: {
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  paymentNotes?: string;
   bankInfo?: BankInfo;
 }) {
   const bi = bankInfo ?? DEFAULT_BANK_INFO;
@@ -338,6 +346,18 @@ function PaymentContent({
           <Text style={s.payTotalVal}>{formatBRL(valorTotal)}</Text>
         </View>
       </View>
+
+      {/* Observações de pagamento — exibidas somente se preenchidas */}
+      {paymentNotes && paymentNotes.trim() ? (
+        <View style={{ marginTop: 8, padding: 9, backgroundColor: C.gray50, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: C.gray300 }}>
+          <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: C.gray500, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 4 }}>
+            Observações
+          </Text>
+          {paymentNotes.trim().split("\n").map((line, i) => (
+            <Text key={i} style={[s.bodyText, { marginBottom: 2 }]}>{line}</Text>
+          ))}
+        </View>
+      ) : null}
 
       <View style={s.bankBox}>
         <Text style={s.bankTitle}>Dados para Pagamento</Text>
@@ -572,6 +592,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             section={section}
             pagamentos={data.pagamentos}
             valorTotal={data.valorTotal}
+            paymentNotes={data.paymentNotes}
             bankInfo={data.bankInfo}
           />
         ))}

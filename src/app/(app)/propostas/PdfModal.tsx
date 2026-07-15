@@ -161,6 +161,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   });
 
   const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
+  const [paymentNotes, setPaymentNotes] = useState("");
   const [imagens, setImagens] = useState<string[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
@@ -201,9 +202,10 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
       .map(({ id, title, content, type }) => ({ id, title, content, type })),
     valorTotal: proposal.totalValue,
     pagamentos,
+    paymentNotes: paymentNotes.trim() || undefined,
     imagens,
     bankInfo,
-  }), [proposal, client, clientAddress, sections, pagamentos, imagens, bankInfo, selectedContact]);
+  }), [proposal, client, clientAddress, sections, pagamentos, paymentNotes, imagens, bankInfo, selectedContact]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -556,6 +558,21 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                 <div className={"text-sm font-semibold px-4 py-2 rounded-lg " + (diff ? "bg-yellow-100 text-yellow-700" : "bg-[#1A1A1A]/10 text-[#1A1A1A]")}>
                   Total: {brl(totalPag)}
                 </div>
+              </div>
+
+              {/* Observações de pagamento */}
+              <div className="mt-6 pt-5 border-t border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">Observações de Pagamento</h3>
+                <p className="text-xs text-gray-500 mb-2">
+                  Texto livre exibido abaixo da tabela de parcelas no PDF (ex: "O sinal deverá ser pago antes do início dos serviços", prazo de vencimento, forma de pagamento, multas por atraso, etc.). Deixe em branco para não exibir.
+                </p>
+                <textarea
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  rows={4}
+                  placeholder={"Ex: O sinal deverá ser pago mediante assinatura do contrato.\nAs demais parcelas vencem todo dia 10 de cada mês.\nAtraso superior a 5 dias úteis sujeito a multa de 2% + juros de 1% a.m."}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30 resize-y font-mono leading-relaxed"
+                />
               </div>
 
               {/* Seletor de contato */}
