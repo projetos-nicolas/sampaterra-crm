@@ -14,17 +14,17 @@ interface SampaTerraLogoProps {
 }
 
 /**
- * Logo oficial da Sampa Terra — versão amarela sobre fundo escuro.
- * Arquivo: /public/logo amarelo sampa.jpeg
+ * Logo oficial da Sampa Terra — versão editada, amarela sobre fundo escuro.
+ * Arquivo: /public/logo-sampa-editado.png
  */
 export function SampaTerraLogo({
   variant = "azul-quadrado",
-  height = 56,
+  height = 80,
   className = "",
 }: SampaTerraLogoProps) {
   return (
     <img
-      src="/logo-sampa-amarelo.jpeg"
+      src="/logo-sampa-editado.png"
       alt="Sampa Terra"
       className={`flex-shrink-0 object-contain ${className}`}
       style={{

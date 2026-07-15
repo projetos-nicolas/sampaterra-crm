@@ -18,7 +18,6 @@ import {
 import { PORTFOLIO_IMGS } from "./portfolioAssets";
 import { COVER_IMGS } from "./coverAssets";
 import { EQUIP_IMGS } from "./equipAssets";
-import { LOGO_SAMPA } from "./logoAsset";
 
 // Desativa a hifenização automática (estava partindo "PROJETOS" em "PROJE-TOS")
 Font.registerHyphenationCallback((word) => [word]);
@@ -228,7 +227,10 @@ function PageHeader({ code, title }: { code: string; title: string }) {
   return (
     <View style={s.pageHeader} fixed>
       <View style={s.pageHeaderBrand}>
-        <PDFImage src={LOGO_SAMPA} style={{ width: 90, height: 36, objectFit: "contain" }} />
+        <View style={s.pageHeaderBar} />
+        <View>
+          <Text style={s.pageHeaderName}>SAMPA TERRA</Text>
+        </View>
       </View>
       <View>
         <Text style={s.pageHeaderCode}>{code}</Text>
@@ -465,7 +467,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <CoverArrowBanner />
           </View>
           <View style={s.coverBottomContent}>
-            <PDFImage src={LOGO_SAMPA} style={{ width: 120, height: 48, objectFit: "contain", marginBottom: 4 }} />
+            <Text style={s.coverLogoText}>SAMPA TERRA</Text>
             <Text style={s.coverSiteText}>www.sampaterra.com.br</Text>
           </View>
         </View>
@@ -483,7 +485,10 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
 
         <View style={s.brandInner}>
           <View style={s.brandTopRow}>
-            <PDFImage src={LOGO_SAMPA} style={{ width: 130, height: 52, objectFit: "contain" }} />
+            <View style={s.brandLogoBar} />
+            <View>
+              <Text style={s.brandLogoText}>SAMPA TERRA</Text>
+            </View>
           </View>
 
           {/* Quem Somos — coluna de texto estreita, livre das faixas diagonais */}
