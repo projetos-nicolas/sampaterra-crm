@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
-import type { PDFSection, PagamentoItem, BankInfo } from "@/lib/pdf/PropostaPDF";
+import type { PDFSection, PagamentoItem, BankInfo, ImageItem } from "@/lib/pdf/PropostaPDF";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
 
 const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
@@ -162,7 +162,8 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
 
   const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
   const [paymentNotes, setPaymentNotes] = useState("");
-  const [imagens, setImagens] = useState<string[]>([]);
+  const [obraAddress, setObraAddress] = useState("");
+  const [imagens, setImagens] = useState<ImageItem[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
   const primaryContact = contacts.find((c: any) => c.isPrimary) ?? null;
@@ -197,6 +198,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     clientContactName: selectedContact ? selectedContact.name : undefined,
     clientContactRole: selectedContact?.role || undefined,
     clientAddress: clientAddress || undefined,
+    obraAddress: obraAddress.trim() || undefined,
     sections: sections
       .filter((s) => s.enabled)
       .map(({ id, title, content, type }) => ({ id, title, content, type })),
@@ -205,7 +207,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     paymentNotes: paymentNotes.trim() || undefined,
     imagens,
     bankInfo,
-  }), [proposal, client, clientAddress, sections, pagamentos, paymentNotes, imagens, bankInfo, selectedContact]);
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagens, bankInfo, selectedContact]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -239,11 +241,28 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const addImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     Array.from(e.target.files || []).forEach((f) => {
       const r = new FileReader();
-      r.onload = (ev) => setImagens((p) => [...p, ev.target?.result as string]);
+      r.onload = (ev) => setImagens((p) => [...p, {
+        src: ev.target?.result as string,
+        caption: "",
+        size: "full",
+        align: "center",
+      }]);
       r.readAsDataURL(f);
     });
     e.target.value = "";
   };
+
+  const updateImage = (i: number, patch: Partial<ImageItem>) =>
+    setImagens((p) => p.map((img, j) => j === i ? { ...img, ...patch } : img));
+
+  const moveImage = (i: number, dir: -1 | 1) =>
+    setImagens((p) => {
+      const next = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return p;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
 
   const totalPag = pagamentos.reduce((s, p) => s + p.valor, 0);
   const diff = Math.abs(totalPag - proposal.totalValue) > 0.5;
@@ -333,6 +352,20 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           {/* Secoes */}
           {tab === "secoes" && (
             <div className="p-6 space-y-2">
+              {/* Endereço da Obra */}
+              <div className="mb-5 p-4 rounded-xl border border-[#F5A623]/40 bg-[#F5A623]/5">
+                <label className="block text-xs font-bold text-[#1A1A1A] uppercase tracking-wider mb-1.5">
+                  Endereço / Local da Obra
+                </label>
+                <input
+                  type="text"
+                  value={obraAddress}
+                  onChange={(e) => setObraAddress(e.target.value)}
+                  placeholder="Ex: Rua das Flores, 123 — São Paulo - SP"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5A623]/50"
+                />
+                <p className="mt-1 text-xs text-gray-400">Aparece no PDF logo antes da seção Objetivo do Contrato.</p>
+              </div>
               <p className="text-xs text-gray-500 mb-4">
                 Ative/desative ou apague seções. A numeração se ajusta automaticamente.
               </p>
@@ -687,46 +720,136 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           {/* Imagens */}
           {tab === "imagens" && (
             <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
-                Cada imagem adicionada vira uma página completa no PDF.
-              </p>
-              <input ref={imgRef} type="file" accept="image/*" multiple onChange={addImage} className="hidden" />
-              <button
-                onClick={() => imgRef.current?.click()}
-                className="mb-6 flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-lg hover:bg-[#0a3835] transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Adicionar Imagens</span>
-              </button>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs text-gray-500">Cada imagem vira uma página no PDF — com cabeçalho, rodapé e legenda opcional.</p>
+                <input ref={imgRef} type="file" accept="image/*" multiple onChange={addImage} className="hidden" />
+                <button
+                  onClick={() => imgRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-lg hover:bg-[#333] transition-colors shrink-0 ml-4"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Adicionar</span>
+                </button>
+              </div>
               {imagens.length === 0 ? (
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center text-gray-400 text-sm">
-                  Nenhuma imagem adicionada.
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center text-gray-400 text-sm">
+                  Nenhuma imagem adicionada ainda.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {imagens.map((src, i) => (
-                    <div
-                      key={i}
-                      className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-100"
-                      style={{ aspectRatio: "16/9" }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={"img" + i} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                        <button
-                          onClick={() => setImagens((p) => p.filter((_, j) => j !== i))}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-1.5"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                <div className="space-y-4">
+                  {imagens.map((img, i) => (
+                    <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                      <div className="flex gap-4 p-4">
+                        {/* Preview */}
+                        <div className="relative shrink-0 w-40 h-28 bg-gray-100 rounded-lg overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.src} alt={"img" + i} className="w-full h-full object-contain" />
+                          <span className="absolute top-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+                            {i + 1}
+                          </span>
+                        </div>
+                        {/* Controles */}
+                        <div className="flex-1 min-w-0 space-y-3">
+                          {/* Legenda */}
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Legenda</label>
+                            <input
+                              type="text"
+                              value={img.caption}
+                              onChange={(e) => updateImage(i, { caption: e.target.value })}
+                              placeholder="Descrição opcional da imagem..."
+                              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
+                            />
+                          </div>
+                          {/* Tamanho */}
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamanho</label>
+                            <div className="mt-1 flex gap-1.5 flex-wrap">
+                              {([
+                                { v: "full", l: "Cheia" },
+                                { v: "large", l: "Grande" },
+                                { v: "medium", l: "Média" },
+                                { v: "small", l: "Pequena" },
+                              ] as const).map(({ v, l }) => (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  onClick={() => updateImage(i, { size: v })}
+                                  className={
+                                    "px-3 py-1 text-xs font-medium rounded-lg border transition " +
+                                    (img.size === v
+                                      ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-[#1A1A1A]")
+                                  }
+                                >
+                                  {l}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Alinhamento (só aparece se não for cheia) */}
+                          {img.size !== "full" && (
+                            <div>
+                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Posição</label>
+                              <div className="mt-1 flex gap-1.5">
+                                {([
+                                  { v: "left", l: "Esquerda" },
+                                  { v: "center", l: "Centro" },
+                                  { v: "right", l: "Direita" },
+                                ] as const).map(({ v, l }) => (
+                                  <button
+                                    key={v}
+                                    type="button"
+                                    onClick={() => updateImage(i, { align: v })}
+                                    className={
+                                      "px-3 py-1 text-xs font-medium rounded-lg border transition " +
+                                      (img.align === v
+                                        ? "bg-[#F5A623] text-white border-[#F5A623]"
+                                        : "bg-white text-gray-600 border-gray-200 hover:border-[#F5A623]")
+                                    }
+                                  >
+                                    {l}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* Ações */}
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button
+                            onClick={() => moveImage(i, -1)}
+                            disabled={i === 0}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition"
+                            title="Mover para cima"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => moveImage(i, 1)}
+                            disabled={i === imagens.length - 1}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition"
+                            title="Mover para baixo"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setImagens((p) => p.filter((_, j) => j !== i))}
+                            className="mt-auto p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="Remover"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                      <span className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
-                        {"Pag. " + (i + 1)}
-                      </span>
                     </div>
                   ))}
                 </div>

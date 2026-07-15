@@ -50,6 +50,14 @@ export interface PagamentoItem {
   ordem: number;
 }
 
+export interface ImageItem {
+  src: string;
+  caption: string;
+  /** full ≈ 100% da largura útil | large ≈ 75% | medium ≈ 50% | small ≈ 35% */
+  size: "full" | "large" | "medium" | "small";
+  align: "left" | "center" | "right";
+}
+
 export interface PropostaPDFData {
   code: string;
   title: string;
@@ -62,13 +70,15 @@ export interface PropostaPDFData {
   clientContactName?: string;
   clientContactRole?: string;
   clientAddress?: string;
+  /** Endereço / localização do canteiro de obras */
+  obraAddress?: string;
   /** Apenas as seções habilitadas, em ordem — o PDF as numera 1..N */
   sections: PDFSection[];
   valorTotal: number;
   pagamentos: PagamentoItem[];
   /** Texto livre exibido abaixo da tabela de parcelas e antes dos dados bancários */
   paymentNotes?: string;
-  imagens: string[];
+  imagens: ImageItem[];
   bankInfo?: BankInfo;
 }
 
@@ -109,7 +119,7 @@ const s = StyleSheet.create({
   // globais
   page:         { fontFamily: "Helvetica", fontSize: 9, color: C.gray900, backgroundColor: C.white },
   contentPage:  { padding: "36px 48px 60px" },
-  imagePage:    { backgroundColor: "#000", padding: 0 },
+  imagePage:    { padding: "36px 48px 60px" },
   signPage:     { padding: "36px 48px 60px" },
 
   // capa
@@ -213,6 +223,10 @@ const s = StyleSheet.create({
   signSub:      { fontSize: 7, color: C.gray500, textAlign: "center", marginTop: 2 },
 
   fullImage:    { width: "100%", height: "100%", objectFit: "contain" },
+
+  // página de imagens (normal, com header/footer)
+  imgPageInner: { flex: 1, justifyContent: "center", alignItems: "center" },
+  imgCaption:   { marginTop: 8, fontSize: 8, color: C.gray500, fontFamily: "Helvetica-Oblique", textAlign: "center" },
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -581,6 +595,12 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
                 <Text style={s.clientVal}>{data.clientAddress}</Text>
               </View>
             )}
+            {data.obraAddress && (
+              <View style={[s.clientRow, { marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: C.gray300 }]}>
+                <Text style={s.clientKey}>Local da Obra:</Text>
+                <Text style={s.clientVal}>{data.obraAddress}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -600,12 +620,29 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         <PageFooter />
       </Page>
 
-      {/* ── PÁGINAS DE IMAGENS ── */}
-      {data.imagens.map((src, i) => (
-        <Page key={`img-${i}`} size="A4" style={[s.page, s.imagePage]}>
-          <PDFImage src={src} style={s.fullImage} />
-        </Page>
-      ))}
+      {/* ── PÁGINAS DE IMAGENS (página normal com header/footer) ── */}
+      {data.imagens.map((img, i) => {
+        const widthMap = { full: 499, large: 374, medium: 249, small: 175 };
+        const imgW = widthMap[img.size] ?? 499;
+        const alignMap: Record<string, "flex-start" | "center" | "flex-end"> = {
+          left: "flex-start", center: "center", right: "flex-end",
+        };
+        return (
+          <Page key={`img-${i}`} size="A4" style={[s.page, s.imagePage]}>
+            <PageHeader code={data.code} title={data.title} />
+            <View style={[s.imgPageInner, { alignItems: alignMap[img.align] ?? "center" }]}>
+              <PDFImage
+                src={img.src}
+                style={{ width: imgW, maxHeight: 600, objectFit: "contain" }}
+              />
+              {img.caption ? (
+                <Text style={[s.imgCaption, { width: imgW }]}>{img.caption}</Text>
+              ) : null}
+            </View>
+            <PageFooter />
+          </Page>
+        );
+      })}
 
       {/* ── ASSINATURAS ── */}
       <Page size="A4" style={[s.page, s.signPage]}>
