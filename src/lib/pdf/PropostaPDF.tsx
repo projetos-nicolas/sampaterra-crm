@@ -44,6 +44,8 @@ export interface PDFSection {
   type: SectionType;
   /** Se true, inicia esta seção numa nova página */
   pageBreakBefore?: boolean;
+  /** Espaço extra (pt) acima desta seção, para diagramação */
+  paddingBefore?: number;
 }
 
 export interface PagamentoItem {
@@ -297,7 +299,7 @@ function SectionBlock({
   const lines = section.content.split("\n");
 
   return (
-    <View style={{ marginBottom: 14 }} break={section.pageBreakBefore === true}>
+    <View style={{ marginBottom: 14, paddingTop: section.paddingBefore ?? 0 }} break={section.pageBreakBefore === true}>
       {/* Título */}
       <View style={s.sectionRow} wrap={false}>
         <Text style={s.sectionNum}>{number}.</Text>

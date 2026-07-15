@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
 import type { PDFSection, PagamentoItem, BankInfo, ImageSlot, ImagePage } from "@/lib/pdf/PropostaPDF";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
+import { InteractivePDFCanvas } from "./InteractivePDFCanvas";
 
 const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
   ssr: false,
@@ -355,6 +356,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
   const [paymentNotes, setPaymentNotes] = useState("");
   const [obraAddress, setObraAddress] = useState("");
+  const [sectionSpacings, setSectionSpacings] = useState<Record<string, number>>({});
   const [imagePages, setImagePages] = useState<ImagePage[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
@@ -392,13 +394,16 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     obraAddress: obraAddress.trim() || undefined,
     sections: sections
       .filter((s) => s.enabled)
-      .map(({ id, title, content, type, pageBreakBefore }) => ({ id, title, content, type, pageBreakBefore })),
+      .map(({ id, title, content, type, pageBreakBefore }) => ({
+        id, title, content, type, pageBreakBefore,
+        paddingBefore: sectionSpacings[id] ?? 0,
+      })),
     valorTotal: proposal.totalValue,
     pagamentos,
     paymentNotes: paymentNotes.trim() || undefined,
     imagens: imagePages,
     bankInfo,
-  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact]);
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -428,6 +433,9 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     setSections((p) => p.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   const expandSec = (id: string) =>
     setSections((p) => p.map((s) => (s.id === id ? { ...s, expanded: !s.expanded } : s)));
+
+  const handleSpacingChange = useCallback((id: string, v: number) =>
+    setSectionSpacings(prev => ({ ...prev, [id]: v })), []);
 
   const handlePageUpdate = useCallback((pi: number, newPage: ImagePage) => {
     setImagePages(p => p.map((pg, i) => i === pi ? newPage : pg));
@@ -964,10 +972,14 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
             </div>{/* fim flex-1 overflow-auto */}
           </div>{/* fim painel esquerdo */}
 
-          {/* ── Painel direito: preview sempre visível ── */}
+          {/* ── Painel direito: canvas interativo de diagramação ── */}
           <div className="flex-1 min-w-0 min-h-0 overflow-hidden" style={{ position: "relative" }}>
             <div style={{ position: "absolute", inset: 0 }}>
-              <PDFPreviewPanel data={pdfData} />
+              <InteractivePDFCanvas
+                sections={sections}
+                sectionSpacings={sectionSpacings}
+                onSpacingChange={handleSpacingChange}
+              />
             </div>
           </div>
 
