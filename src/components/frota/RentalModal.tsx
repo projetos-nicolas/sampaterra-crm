@@ -9,6 +9,7 @@ type RentalData = {
   proposalId: string | null;
   title: string;
   operador: string | null;
+  location: string | null;
   startDate: string | Date;
   endDate: string | Date;
   notes: string | null;
@@ -34,6 +35,7 @@ export function RentalModal({
     proposalId: rental?.proposalId ?? "",
     title: rental?.title ?? "",
     operador: rental?.operador ?? "",
+    location: rental?.location ?? "",
     startDate: rental ? new Date(rental.startDate).toISOString().slice(0, 10) : "",
     endDate: rental ? new Date(rental.endDate).toISOString().slice(0, 10) : "",
     notes: rental?.notes ?? "",
@@ -78,6 +80,7 @@ export function RentalModal({
       clientId: proposal?.clientId || undefined,
       title: form.title.trim(),
       operador: form.operador.trim() || undefined,
+      location: form.location.trim() || undefined,
       startDate: new Date(form.startDate + "T08:00:00").toISOString(),
       endDate: new Date(form.endDate + "T18:00:00").toISOString(),
       notes: form.notes || undefined,
@@ -123,9 +126,15 @@ export function RentalModal({
             <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inputCls} placeholder="Ex: Locação obra Av. Paulista" />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Operador</label>
-            <input value={form.operador} onChange={(e) => setForm((f) => ({ ...f, operador: e.target.value }))} className={inputCls} placeholder="Nome do operador responsável" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Operador</label>
+              <input value={form.operador} onChange={(e) => setForm((f) => ({ ...f, operador: e.target.value }))} className={inputCls} placeholder="Nome do operador" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Localização</label>
+              <input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} className={inputCls} placeholder="Ex: Obra Av. Paulista" />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

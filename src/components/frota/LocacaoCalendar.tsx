@@ -213,6 +213,7 @@ export function LocacaoCalendar() {
                     <p className="text-xs text-gray-500 mt-0.5 truncate">
                       {r.machine?.name}
                       {r.operador ? ` · Op: ${r.operador}` : ""}
+                      {r.location ? ` · 📍 ${r.location}` : ""}
                       {r.client ? ` · ${r.client.company || r.client.name}` : ""}
                     </p>
                   </div>

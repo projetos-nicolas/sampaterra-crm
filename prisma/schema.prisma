@@ -575,7 +575,8 @@ model MachineRental {
   leadId     String?   @map("lead_id")
   clientId   String?   @map("client_id")
   title      String    // ex: nome do cliente/obra
-  operador   String?   @map("operador") // operador responsável pela locação
+  operador   String?   @map("operador")  // operador responsável pela locação
+  location   String?   @map("location")  // local/obra onde a máquina está alocada
   startDate  DateTime  @map("start_date")
   endDate    DateTime  @map("end_date")
   notes      String?
