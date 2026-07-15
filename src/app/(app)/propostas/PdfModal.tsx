@@ -466,8 +466,8 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-auto">
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-[94vw] my-4 flex flex-col overflow-hidden"
-        style={{ maxHeight: "calc(100vh - 2rem)" }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-[98vw] my-2 flex flex-col overflow-hidden"
+        style={{ height: "calc(100vh - 1rem)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap px-6 py-4 border-b border-gray-200 shrink-0">
@@ -513,7 +513,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* ── Painel esquerdo: abas + conteúdo ── */}
-          <div className="flex flex-col w-[45%] min-w-0 min-h-0 border-r border-gray-200">
+          <div className="flex flex-col min-w-0 min-h-0 border-r border-gray-200" style={{ width: "420px", flexShrink: 0 }}>
 
             {/* Tabs */}
             <div className="flex border-b border-gray-200 px-4 bg-gray-50 shrink-0 overflow-x-auto">
@@ -965,8 +965,10 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           </div>{/* fim painel esquerdo */}
 
           {/* ── Painel direito: preview sempre visível ── */}
-          <div className="flex-1 min-w-0 min-h-0 bg-gray-100 overflow-hidden" style={{ height: "100%" }}>
-            <PDFPreviewPanel data={pdfData} />
+          <div className="flex-1 min-w-0 min-h-0 overflow-hidden" style={{ position: "relative" }}>
+            <div style={{ position: "absolute", inset: 0 }}>
+              <PDFPreviewPanel data={pdfData} />
+            </div>
           </div>
 
         </div>{/* fim split-view */}
