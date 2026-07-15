@@ -363,7 +363,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     primaryContact?.id ?? null
   );
   const selectedContact = contacts.find((c: any) => c.id === selectedContactId) ?? null;
-  const [tab, setTab] = useState<"secoes" | "pagamento" | "imagens" | "preview">("secoes");
+  const [tab, setTab] = useState<"secoes" | "pagamento" | "imagens">("secoes");
   const [downloading, setDownloading] = useState(false);
 
   const clientAddress = [
@@ -461,13 +461,12 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     { id: "secoes" as const, label: "Seções" },
     { id: "pagamento" as const, label: "Pagamento" },
     { id: "imagens" as const, label: "Imagens" },
-    { id: "preview" as const, label: "Preview" },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-auto">
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl my-4 flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-[94vw] my-4 flex flex-col overflow-hidden"
         style={{ maxHeight: "calc(100vh - 2rem)" }}
       >
         {/* Header */}
@@ -510,31 +509,37 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 px-6 bg-gray-50 shrink-0 overflow-x-auto">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={
-                "px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap " +
-                (tab === t.id
-                  ? "border-[#1A1A1A] text-[#1A1A1A]"
-                  : "border-transparent text-gray-500 hover:text-gray-700")
-              }
-            >
-              {t.label}
-              {t.id === "imagens" && imagePages.length > 0 && (
-                <span className="ml-1.5 text-xs bg-[#F5A623] text-white rounded-full px-1.5 py-0.5">
-                  {imagePages.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Split-view: Editor (esquerda) + Preview (direita) */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* Body */}
-        <div className="flex-1 overflow-auto">
+          {/* ── Painel esquerdo: abas + conteúdo ── */}
+          <div className="flex flex-col w-[45%] min-w-0 border-r border-gray-200 overflow-hidden">
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200 px-4 bg-gray-50 shrink-0 overflow-x-auto">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={
+                    "px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap " +
+                    (tab === t.id
+                      ? "border-[#1A1A1A] text-[#1A1A1A]"
+                      : "border-transparent text-gray-500 hover:text-gray-700")
+                  }
+                >
+                  {t.label}
+                  {t.id === "imagens" && imagePages.length > 0 && (
+                    <span className="ml-1.5 text-xs bg-[#F5A623] text-white rounded-full px-1.5 py-0.5">
+                      {imagePages.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-auto">
 
           {/* Secoes */}
           {tab === "secoes" && (
@@ -955,14 +960,16 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
             </div>
           )}
 
-          {/* Preview */}
-          {tab === "preview" && (
-            <div style={{ height: "70vh" }}>
-              <PDFPreviewPanel data={pdfData} />
-            </div>
-          )}
 
-        </div>
+            </div>{/* fim flex-1 overflow-auto */}
+          </div>{/* fim painel esquerdo */}
+
+          {/* ── Painel direito: preview sempre visível ── */}
+          <div className="flex-1 min-w-0 bg-gray-100 overflow-hidden">
+            <PDFPreviewPanel data={pdfData} />
+          </div>
+
+        </div>{/* fim split-view */}
       </div>
     </div>
   );

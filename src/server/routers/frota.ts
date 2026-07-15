@@ -127,17 +127,35 @@ export const frotaRouter = createTRPCRouter({
   createMaintenance: protectedProcedure
     .input(maintenanceUpsertSchema)
     .mutation(async ({ ctx, input }) => {
-      return ctx.prisma.machineMaintenance.create({
+      const maintenanceDate = input.date ? new Date(input.date) : new Date();
+
+      const maintenance = await ctx.prisma.machineMaintenance.create({
         data: {
           machineId: input.machineId,
-          date: input.date ? new Date(input.date) : new Date(),
+          date: maintenanceDate,
           performedBy: input.performedBy,
           operador: input.operador,
           description: input.description,
           cost: input.cost,
           photos: input.photos ?? [],
         },
+        include: { machine: { select: { name: true } } },
       });
+
+      // Se houver custo, cria automaticamente um gasto mensal do escritório
+      if (input.cost != null && input.cost > 0) {
+        const machineName = (maintenance as any).machine?.name ?? "Máquina";
+        await ctx.prisma.officeExpense.create({
+          data: {
+            description: `Manutenção — ${machineName} — ${input.description}`,
+            category: "manutencao",
+            value: input.cost,
+            referenceDate: maintenanceDate,
+          },
+        });
+      }
+
+      return maintenance;
     }),
 
   updateMaintenance: protectedProcedure
