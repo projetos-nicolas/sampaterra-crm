@@ -80,7 +80,7 @@ const EMPTY_ITEM = (): ProposalItem => ({
   sortOrder: 0,
 });
 
-const UNIT_OPTIONS = ["m²", "m", "un", "vb", "kg", "t", "h", "mês"];
+const UNIT_OPTIONS = ["m²", "m", "un", "vb", "kg", "t", "h", "mês", "caminhões", "diária"];
 
 // ─── formatadores ─────────────────────────────────────────────────────────────
 

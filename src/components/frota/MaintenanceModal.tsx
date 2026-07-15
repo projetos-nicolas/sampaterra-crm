@@ -8,6 +8,7 @@ type MaintenanceData = {
   id: string;
   date: string | Date;
   performedBy: string;
+  operador: string | null;
   description: string;
   cost: number | string | null;
   photos: string[];
@@ -28,6 +29,7 @@ export function MaintenanceModal({
   const [form, setForm] = useState({
     date: maintenance ? new Date(maintenance.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
     performedBy: maintenance?.performedBy ?? "",
+    operador: maintenance?.operador ?? "",
     description: maintenance?.description ?? "",
     cost: maintenance?.cost ? String(maintenance.cost) : "",
   });
@@ -83,6 +85,7 @@ export function MaintenanceModal({
     const data = {
       date: new Date(form.date + "T12:00:00").toISOString(),
       performedBy: form.performedBy.trim(),
+      operador: form.operador.trim() || undefined,
       description: form.description.trim(),
       cost: form.cost ? parseFloat(form.cost.replace(",", ".")) : undefined,
       photos,
@@ -114,9 +117,15 @@ export function MaintenanceModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Realizado por *</label>
-            <input value={form.performedBy} onChange={(e) => setForm((f) => ({ ...f, performedBy: e.target.value }))} className={inputCls} placeholder="Nome do responsável / oficina" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Realizado por *</label>
+              <input value={form.performedBy} onChange={(e) => setForm((f) => ({ ...f, performedBy: e.target.value }))} className={inputCls} placeholder="Oficina / responsável" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Operador</label>
+              <input value={form.operador} onChange={(e) => setForm((f) => ({ ...f, operador: e.target.value }))} className={inputCls} placeholder="Nome do operador" />
+            </div>
           </div>
 
           <div>

@@ -18,6 +18,7 @@ function ManutencaoTab() {
   const { data: machines, refetch } = trpc.frota.listMachines.useQuery({ includeInactive: true });
   const [newMachine, setNewMachine] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const updateMachine = trpc.frota.updateMachine.useMutation({ onSuccess: () => refetch() });
 
   return (
     <div>
@@ -40,10 +41,9 @@ function ManutencaoTab() {
           {machines.map((m: any) => (
             <div
               key={m.id}
-              onClick={() => setDetailId(m.id)}
-              className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition cursor-pointer"
+              className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 cursor-pointer" onClick={() => setDetailId(m.id)}>
                 <div className="w-16 h-16 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
                   {m.photoPath ? (
                     <img src={getPublicUrl(STORAGE_BUCKETS.FROTA, m.photoPath)} alt="" className="w-full h-full object-cover" />
@@ -61,17 +61,35 @@ function ManutencaoTab() {
                   </span>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                {m.maintenances?.[0] ? (
-                  <>
-                    <p className="font-medium text-gray-600">Última manutenção</p>
-                    <p className="text-gray-400 mt-0.5">
-                      {new Date(m.maintenances[0].date).toLocaleDateString("pt-BR")} · {m.maintenances[0].performedBy}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-gray-400">Nenhuma manutenção registrada</p>
-                )}
+
+              {/* Toggle de disponibilidade */}
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                <div className="text-xs text-gray-500">
+                  {m.maintenances?.[0] ? (
+                    <span className="text-gray-400">
+                      Manutenção: {new Date(m.maintenances[0].date).toLocaleDateString("pt-BR")}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Sem manutenção registrada</span>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextStatus = m.status === "disponivel" ? "inativa" : "disponivel";
+                    updateMachine.mutate({ id: m.id, data: { status: nextStatus } });
+                  }}
+                  disabled={updateMachine.isPending}
+                  title={m.status === "disponivel" ? "Marcar como indisponível" : "Marcar como disponível"}
+                  className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border transition disabled:opacity-50 ${
+                    m.status === "disponivel"
+                      ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                      : "border-gray-300 text-gray-500 bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${m.status === "disponivel" ? "bg-green-500" : "bg-gray-400"}`} />
+                  {m.status === "disponivel" ? "Disponível" : "Indisponível"}
+                </button>
               </div>
             </div>
           ))}

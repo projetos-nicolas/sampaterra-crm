@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/trpc/client";
-import { formatDate } from "@/lib/utils";
+import { formatDate, maskCPF, maskCNPJ, maskPhone } from "@/lib/utils";
 
 const ESTADOS_BR = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
@@ -45,7 +45,7 @@ function ClientForm({ initial, onSubmit, onCancel, isPending, submitLabel }: { i
         )}
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{form.type==="PF"?"CPF":"CNPJ"}</label>
-          <input value={form.cpf_cnpj} onChange={e=>f("cpf_cnpj",e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder={form.type==="PF"?"000.000.000-00":"00.000.000/0000-00"}/>
+          <input value={form.cpf_cnpj} onChange={e=>f("cpf_cnpj", form.type==="PF" ? maskCPF(e.target.value) : maskCNPJ(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder={form.type==="PF"?"000.000.000-00":"00.000.000/0000-00"}/>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">E-mail</label>
@@ -53,7 +53,7 @@ function ClientForm({ initial, onSubmit, onCancel, isPending, submitLabel }: { i
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Telefone</label>
-          <input value={form.phone} onChange={e=>f("phone",e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="(11) 99999-0000"/>
+          <input value={form.phone} onChange={e=>f("phone", maskPhone(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="(11) 99999-0000"/>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">CEP</label>
@@ -222,7 +222,7 @@ function EmpresaVinculadaSection({ client, onUpdated }: { client: any; onUpdated
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">CNPJ</label>
-          <input value={cnpj} onChange={e=>setCnpj(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="00.000.000/0000-00"/>
+          <input value={cnpj} onChange={e=>setCnpj(maskCNPJ(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]" placeholder="00.000.000/0000-00"/>
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
         <div className="flex gap-2 pt-1">

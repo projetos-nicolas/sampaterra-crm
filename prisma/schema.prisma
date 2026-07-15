@@ -545,8 +545,9 @@ model Machine {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  maintenances MachineMaintenance[]
-  rentals      MachineRental[]
+  maintenances          MachineMaintenance[]
+  rentals               MachineRental[]
+  preventiveMaintenances MachinePreventiveMaintenance[]
 
   @@map("machines")
 }
@@ -556,6 +557,7 @@ model MachineMaintenance {
   machineId   String   @map("machine_id")
   date        DateTime @default(now())
   performedBy String   @map("performed_by") // texto livre — quem fez a manutenção
+  operador    String?  @map("operador")      // operador da máquina no momento
   description String   // o que foi feito
   cost        Decimal? @db.Decimal(12, 2)
   photos      String[] // storage paths das fotos da manutenção
@@ -573,6 +575,7 @@ model MachineRental {
   leadId     String?   @map("lead_id")
   clientId   String?   @map("client_id")
   title      String    // ex: nome do cliente/obra
+  operador   String?   @map("operador") // operador responsável pela locação
   startDate  DateTime  @map("start_date")
   endDate    DateTime  @map("end_date")
   notes      String?
@@ -585,4 +588,25 @@ model MachineRental {
   client     Client?   @relation(fields: [clientId], references: [id])
 
   @@map("machine_rentals")
+}
+
+// ============================================================
+// MANUTENÇÕES PREVENTIVAS (alertas de manutenção futura)
+// ============================================================
+
+model MachinePreventiveMaintenance {
+  id           String    @id @default(uuid())
+  machineId    String    @map("machine_id")
+  title        String    // ex: "Troca de óleo hidráulico"
+  description  String?   // detalhes do que deve ser feito
+  dueDate      DateTime? @map("due_date")    // data prevista
+  intervalDays Int?      @map("interval_days") // periodicidade em dias (opcional)
+  done         Boolean   @default(false)
+  doneAt       DateTime? @map("done_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  machine      Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("machine_preventive_maintenances")
 }

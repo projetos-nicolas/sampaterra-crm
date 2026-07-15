@@ -60,3 +60,53 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   parcial: "Parcial",
   atrasado: "Atrasado",
 };
+
+// ─── Máscaras de formatação ────────────────────────────────────────────────────
+
+/** Aplica máscara CPF: 000.000.000-00 */
+export function maskCPF(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  return d
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
+/** Aplica máscara CNPJ: 00.000.000/0000-00 */
+export function maskCNPJ(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 14);
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+
+/** Aplica máscara de telefone: (00) 00000-0000 ou (00) 0000-0000 */
+export function maskPhone(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) {
+    return d
+      .replace(/(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d{1,4})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+}
+
+/** Aplica máscara RG: 00.000.000-0 */
+export function maskRG(value: string): string {
+  const d = value.replace(/[^\dXx]/g, "").slice(0, 9);
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})([\dXx]{1})$/, "$1-$2");
+}
+
+/** Formata CPF ou CNPJ para exibição (detecta pelo tamanho) */
+export function formatCpfCnpj(value: string | null | undefined): string {
+  if (!value) return "";
+  const d = value.replace(/\D/g, "");
+  return d.length <= 11 ? maskCPF(value) : maskCNPJ(value);
+}

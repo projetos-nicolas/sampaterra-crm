@@ -20,6 +20,7 @@ const maintenanceUpsertSchema = z.object({
   machineId: z.string().uuid(),
   date: z.string().datetime().optional(),
   performedBy: z.string().min(1),
+  operador: z.string().optional(),
   description: z.string().min(1),
   cost: z.number().min(0).optional(),
   photos: z.array(z.string()).optional(),
@@ -31,9 +32,19 @@ const rentalUpsertSchema = z.object({
   leadId: z.string().uuid().optional(),
   clientId: z.string().uuid().optional(),
   title: z.string().min(1),
+  operador: z.string().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   notes: z.string().optional(),
+});
+
+const preventiveUpsertSchema = z.object({
+  machineId: z.string().uuid(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  dueDate: z.string().datetime().optional().nullable(),
+  intervalDays: z.number().int().positive().optional().nullable(),
+  done: z.boolean().optional(),
 });
 
 export const frotaRouter = createTRPCRouter({
@@ -110,6 +121,7 @@ export const frotaRouter = createTRPCRouter({
           machineId: input.machineId,
           date: input.date ? new Date(input.date) : new Date(),
           performedBy: input.performedBy,
+          operador: input.operador,
           description: input.description,
           cost: input.cost,
           photos: input.photos ?? [],
@@ -173,6 +185,7 @@ export const frotaRouter = createTRPCRouter({
           leadId: input.leadId,
           clientId: input.clientId,
           title: input.title,
+          operador: input.operador,
           startDate: new Date(input.startDate),
           endDate: new Date(input.endDate),
           notes: input.notes,
@@ -215,4 +228,56 @@ export const frotaRouter = createTRPCRouter({
       orderBy: { approvedAt: "desc" },
     });
   }),
+
+  // ── MANUTENÇÕES PREVENTIVAS ───────────────────────────────────────────────
+
+  listPreventiveMaintenances: protectedProcedure
+    .input(z.object({ machineId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.prisma.machinePreventiveMaintenance.findMany({
+        where: { machineId: input.machineId },
+        orderBy: [{ done: "asc" }, { dueDate: "asc" }],
+      });
+    }),
+
+  createPreventiveMaintenance: protectedProcedure
+    .input(preventiveUpsertSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.machinePreventiveMaintenance.create({
+        data: {
+          machineId: input.machineId,
+          title: input.title,
+          description: input.description,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          intervalDays: input.intervalDays ?? null,
+          done: input.done ?? false,
+        },
+      });
+    }),
+
+  updatePreventiveMaintenance: protectedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      data: preventiveUpsertSchema.omit({ machineId: true }).partial(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { dueDate, done, ...rest } = input.data;
+      return ctx.prisma.machinePreventiveMaintenance.update({
+        where: { id: input.id },
+        data: {
+          ...rest,
+          ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+          ...(done !== undefined && {
+            done,
+            doneAt: done ? new Date() : null,
+          }),
+        },
+      });
+    }),
+
+  deletePreventiveMaintenance: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.machinePreventiveMaintenance.delete({ where: { id: input.id } });
+    }),
 });
