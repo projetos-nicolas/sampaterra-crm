@@ -340,12 +340,24 @@ function PaymentContent({
   const bi = bankInfo ?? DEFAULT_BANK_INFO;
   return (
     <View wrap={false}>
+      {/* Condições de Pagamento — antes das parcelas */}
+      {paymentNotes && paymentNotes.trim() ? (
+        <View style={{ marginBottom: 10, padding: 9, backgroundColor: C.gray50, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: C.orange }}>
+          <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: C.orange, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 4 }}>
+            Condições de Pagamento
+          </Text>
+          {paymentNotes.trim().split("\n").map((line, i) => (
+            <Text key={i} style={[s.bodyText, { marginBottom: 2 }]}>{line}</Text>
+          ))}
+        </View>
+      ) : null}
+
       <Text style={[s.bodyText, { marginBottom: 6 }]}>
         Pela execução dos serviços, o CONTRATANTE pagará o valor de{" "}
         <Text style={{ fontFamily: "Helvetica-Bold", color: C.teal }}>
           {formatBRL(valorTotal)}
         </Text>
-        , conforme condições abaixo:
+        , conforme parcelas abaixo:
       </Text>
 
       <View style={s.payTable}>
@@ -368,18 +380,6 @@ function PaymentContent({
           <Text style={s.payTotalVal}>{formatBRL(valorTotal)}</Text>
         </View>
       </View>
-
-      {/* Observações de pagamento — exibidas somente se preenchidas */}
-      {paymentNotes && paymentNotes.trim() ? (
-        <View style={{ marginTop: 8, padding: 9, backgroundColor: C.gray50, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: C.gray300 }}>
-          <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: C.gray500, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 4 }}>
-            Observações
-          </Text>
-          {paymentNotes.trim().split("\n").map((line, i) => (
-            <Text key={i} style={[s.bodyText, { marginBottom: 2 }]}>{line}</Text>
-          ))}
-        </View>
-      ) : null}
 
       <View style={s.bankBox}>
         <Text style={s.bankTitle}>Dados para Pagamento</Text>

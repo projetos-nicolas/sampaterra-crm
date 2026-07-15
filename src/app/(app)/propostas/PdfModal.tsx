@@ -769,11 +769,11 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                 </div>
               </div>
 
-              {/* Observações de pagamento */}
+              {/* Condições de Pagamento */}
               <div className="mt-6 pt-5 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-800 mb-1">Observações de Pagamento</h3>
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">Condições de Pagamento</h3>
                 <p className="text-xs text-gray-500 mb-2">
-                  Texto livre exibido abaixo da tabela de parcelas no PDF (ex: "O sinal deverá ser pago antes do início dos serviços", prazo de vencimento, forma de pagamento, multas por atraso, etc.). Deixe em branco para não exibir.
+                  Aparece em destaque <strong>antes</strong> das parcelas (ex: sinal, vencimentos, multa por atraso). Deixe em branco para não exibir.
                 </p>
                 <textarea
                   value={paymentNotes}
