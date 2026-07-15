@@ -4,145 +4,229 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/trpc/client";
 import { RentalModal } from "./RentalModal";
 
-const MACHINE_COLORS = [
-  "bg-teal-500", "bg-orange-500", "bg-blue-500", "bg-purple-500",
-  "bg-rose-500", "bg-amber-500", "bg-emerald-500", "bg-indigo-500",
+// Paleta de cores Obraria: teal + orange + complementares
+const MACHINE_PALETTE = [
+  { bg: "bg-[#0D4A47]", text: "text-white", dot: "bg-[#0D4A47]" },
+  { bg: "bg-[#E8571A]", text: "text-white", dot: "bg-[#E8571A]" },
+  { bg: "bg-teal-600",  text: "text-white", dot: "bg-teal-600"  },
+  { bg: "bg-amber-500", text: "text-white", dot: "bg-amber-500" },
+  { bg: "bg-blue-600",  text: "text-white", dot: "bg-blue-600"  },
+  { bg: "bg-rose-500",  text: "text-white", dot: "bg-rose-500"  },
+  { bg: "bg-emerald-600", text: "text-white", dot: "bg-emerald-600" },
+  { bg: "bg-violet-600", text: "text-white", dot: "bg-violet-600" },
 ];
 
 const MONTH_NAMES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
 ];
+const DAY_LABELS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
-function toISODate(d: Date) { return d.toISOString().slice(0, 10); }
+function endOfMonth(d: Date)   { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
 
 export function LocacaoCalendar() {
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [modal, setModal] = useState<{ open: boolean; rental?: any }>({ open: false });
 
   const from = startOfMonth(cursor);
-  const to = endOfMonth(cursor);
+  const to   = endOfMonth(cursor);
 
   const { data: rentals, refetch } = trpc.frota.listRentals.useQuery({
     from: from.toISOString(),
-    to: to.toISOString(),
+    to:   to.toISOString(),
   });
   const { data: machines } = trpc.frota.listMachines.useQuery({ includeInactive: true });
 
-  const daysInMonth = to.getDate();
-  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
+  // Monta mapa machineId → índice de cor estável
+  const machineColorMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (machines ?? []).forEach((m: any, i: number) => { map[m.id] = i; });
+    return map;
+  }, [machines]);
 
-  const machineColor = (idx: number) => MACHINE_COLORS[idx % MACHINE_COLORS.length];
+  const palette = (machineId: string) =>
+    MACHINE_PALETTE[machineColorMap[machineId] % MACHINE_PALETTE.length] ?? MACHINE_PALETTE[0];
 
-  const machinesWithRentals = useMemo(() => {
-    if (!machines) return [];
-    const usedIds = new Set((rentals ?? []).map((r: any) => r.machineId));
-    return machines.filter((m: any) => usedIds.has(m.id) || m.status !== "inativa");
-  }, [machines, rentals]);
+  // Gera células do calendário (com espaços para alinhar ao dia da semana)
+  const calendarCells = useMemo(() => {
+    const firstDay = from.getDay(); // 0=dom
+    const totalDays = to.getDate();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= totalDays; d++) cells.push(d);
+    return cells;
+  }, [from, to]);
 
-  function isRented(machineId: string, day: number): any {
+  // Para cada dia, quais locações estão ativas?
+  function rentalsOnDay(day: number): any[] {
     const date = new Date(cursor.getFullYear(), cursor.getMonth(), day, 12);
-    return (rentals ?? []).find(
-      (r: any) => r.machineId === machineId && new Date(r.startDate) <= date && new Date(r.endDate) >= date
+    return (rentals ?? []).filter(
+      (r: any) => new Date(r.startDate) <= date && new Date(r.endDate) >= date
     );
   }
 
   const today = new Date();
+  const isToday = (day: number) =>
+    today.getFullYear() === cursor.getFullYear() &&
+    today.getMonth()    === cursor.getMonth() &&
+    today.getDate()     === day;
+
+  // Legenda: máquinas que têm locação no mês
+  const machinesThisMonth = useMemo(() => {
+    const ids = new Set((rentals ?? []).map((r: any) => r.machineId));
+    return (machines ?? []).filter((m: any) => ids.has(m.id));
+  }, [machines, rentals]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
-            className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-500"
+            onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
+            className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-500 font-bold"
           >‹</button>
-          <p className="font-bold text-gray-900 text-sm w-40 text-center">{MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}</p>
+          <p className="font-extrabold text-gray-900 text-base w-44 text-center uppercase tracking-wide">
+            {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
+          </p>
           <button
-            onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
-            className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-500"
+            onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
+            className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 text-gray-500 font-bold"
           >›</button>
           <button
             onClick={() => setCursor(startOfMonth(new Date()))}
-            className="text-xs font-semibold text-gray-400 hover:text-gray-600 ml-1"
+            className="text-xs font-semibold text-gray-400 hover:text-[#0D4A47] ml-1 transition"
           >Hoje</button>
         </div>
         <button
           onClick={() => setModal({ open: true })}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F5A623] text-white text-xs font-semibold rounded-lg hover:bg-[#F7BB52] transition"
+          className="flex items-center gap-1.5 px-4 py-2 bg-[#E8571A] text-white text-sm font-bold rounded-lg hover:bg-[#c94715] transition"
         >
           + Nova Locação
         </button>
       </div>
 
-      {!machines || machines.length === 0 ? (
-        <div className="py-10 text-center text-gray-400 text-sm bg-gray-50 rounded-lg">
-          Cadastre máquinas na aba Manutenção para começar a programar locações.
-        </div>
-      ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-xl">
-          <table className="border-collapse text-xs min-w-full">
-            <thead>
-              <tr>
-                <th className="sticky left-0 bg-white text-left px-3 py-2 font-semibold text-gray-500 border-b border-gray-200 min-w-[160px]">Máquina</th>
-                {days.map((d) => {
-                  const isToday = today.getFullYear() === cursor.getFullYear() && today.getMonth() === cursor.getMonth() && today.getDate() === d;
-                  return (
-                    <th key={d} className={`px-1 py-2 font-medium border-b border-gray-200 text-center w-6 ${isToday ? "text-[#F5A623]" : "text-gray-400"}`}>
-                      {d}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {machinesWithRentals.map((m: any, idx: number) => (
-                <tr key={m.id} className="border-b border-gray-100 last:border-0">
-                  <td className="sticky left-0 bg-white px-3 py-2 font-semibold text-gray-700 whitespace-nowrap">{m.name}</td>
-                  {days.map((d) => {
-                    const r = isRented(m.id, d);
-                    return (
-                      <td key={d} className="p-0.5 text-center">
-                        {r ? (
-                          <div
-                            title={`${r.title}${r.client ? " · " + (r.client.company || r.client.name) : ""}`}
-                            onClick={() => setModal({ open: true, rental: r })}
-                            className={`h-5 rounded cursor-pointer ${machineColor(idx)} opacity-80 hover:opacity-100`}
-                          />
-                        ) : (
-                          <div className="h-5 rounded bg-gray-50" />
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ── Legenda de máquinas ── */}
+      {machinesThisMonth.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {machinesThisMonth.map((m: any) => {
+            const p = palette(m.id);
+            return (
+              <span key={m.id} className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full">
+                <span className={`w-2.5 h-2.5 rounded-full ${p.dot}`} />
+                {m.name}
+              </span>
+            );
+          })}
         </div>
       )}
 
-      {/* Lista do mês */}
-      <div className="mt-6">
-        <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide mb-3">Locações do Mês</h3>
-        {!rentals || rentals.length === 0 ? (
-          <div className="py-6 text-center text-gray-400 text-sm bg-gray-50 rounded-lg">Nenhuma locação neste mês.</div>
-        ) : (
-          <div className="space-y-2">
-            {rentals.map((r: any) => (
-              <div key={r.id} onClick={() => setModal({ open: true, rental: r })} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 hover:border-gray-300 cursor-pointer transition">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{r.title}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {r.machine.name} · {new Date(r.startDate).toLocaleDateString("pt-BR")} – {new Date(r.endDate).toLocaleDateString("pt-BR")}
-                    {r.client ? ` · ${r.client.company || r.client.name}` : ""}
-                    {r.proposal?.code ? ` · ${r.proposal.code}` : ""}
-                  </p>
+      {/* ── Grade do calendário ── */}
+      <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
+        {/* Cabeçalho dos dias da semana */}
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-[#0D4A47]">
+          {DAY_LABELS.map(d => (
+            <div key={d} className="py-2.5 text-center text-xs font-bold text-white/80 uppercase tracking-wider">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* Células dos dias */}
+        <div className="grid grid-cols-7">
+          {calendarCells.map((day, idx) => {
+            if (day === null) {
+              return <div key={`empty-${idx}`} className="min-h-[80px] bg-gray-50 border-r border-b border-gray-100" />;
+            }
+            const dayRentals = rentalsOnDay(day);
+            const isWeekend = (idx % 7 === 0 || idx % 7 === 6);
+            const today_ = isToday(day);
+
+            return (
+              <div
+                key={day}
+                className={`min-h-[80px] border-r border-b border-gray-100 p-1.5 relative ${
+                  isWeekend ? "bg-gray-50/60" : "bg-white"
+                } ${today_ ? "ring-2 ring-inset ring-[#E8571A]" : ""}`}
+              >
+                {/* Número do dia */}
+                <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${
+                  today_
+                    ? "bg-[#E8571A] text-white"
+                    : isWeekend
+                    ? "text-gray-400"
+                    : "text-gray-700"
+                }`}>
+                  {day}
+                </div>
+
+                {/* Eventos de locação */}
+                <div className="space-y-0.5">
+                  {dayRentals.slice(0, 3).map((r: any) => {
+                    const p = palette(r.machineId);
+                    const isStart = new Date(r.startDate).getDate() === day &&
+                      new Date(r.startDate).getMonth() === cursor.getMonth();
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setModal({ open: true, rental: r })}
+                        title={`${r.machine?.name ?? ""} · ${r.title}`}
+                        className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] font-semibold leading-tight truncate ${p.bg} ${p.text} hover:opacity-80 transition`}
+                      >
+                        {isStart ? (r.machine?.name ?? r.title) : ""}
+                      </button>
+                    );
+                  })}
+                  {dayRentals.length > 3 && (
+                    <div className="text-[10px] text-gray-400 font-semibold pl-1">+{dayRentals.length - 3}</div>
+                  )}
                 </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Lista do mês ── */}
+      <div className="mt-6">
+        <h3 className="font-bold text-[#0D4A47] text-sm uppercase tracking-wider mb-3">
+          Locações — {MONTH_NAMES[cursor.getMonth()]}
+        </h3>
+        {!rentals || rentals.length === 0 ? (
+          <div className="py-8 text-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-gray-200">
+            Nenhuma locação programada para este mês.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {rentals.map((r: any) => {
+              const p = palette(r.machineId);
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setModal({ open: true, rental: r })}
+                  className="flex items-center gap-3 border border-gray-200 rounded-xl p-3 hover:border-[#0D4A47]/30 hover:shadow-sm cursor-pointer transition bg-white"
+                >
+                  <span className={`w-3 h-3 rounded-full flex-shrink-0 ${p.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {r.machine?.name}
+                      {r.operador ? ` · Op: ${r.operador}` : ""}
+                      {r.client ? ` · ${r.client.company || r.client.name}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs font-semibold text-gray-700">
+                      {new Date(r.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      até {new Date(r.endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
