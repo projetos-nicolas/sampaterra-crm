@@ -212,7 +212,7 @@ function PageFooter() {
   return (
     <View style={s.pageFooter} fixed>
       <Text style={s.pageFooterText}>
-        SAMPA TERRA CONSTRUÇÕES E ENGENHARIA | contato@sampaterra.com | (11) 99207-7014
+        SAMPA TERRA TERRAPLANAGEM E DEMOLICAO | contato@sampaterra.com | (11) 99207-7014
       </Text>
       <Text
         style={s.pageFooterText}
@@ -310,7 +310,7 @@ function PaymentContent({
         <Text style={s.bankTitle}>Dados para Pagamento</Text>
         {[
           ["Banco", "INTER - 077"],
-          ["Empresa", "SAMPA TERRA CONSTRUCOES E ENGENHARIA LTDA"],
+          ["Empresa", "SAMPA TERRA TERRAPLANAGEM E DEMOLICAO LTDA"],
           ["CNPJ", "45.134.708/0001-73"],
           ["Agência", "0001"],
           ["Conta", "8402098-9"],
@@ -568,7 +568,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
           <View style={s.signBlock}>
             <View style={s.signLine} />
             <Text style={s.signLabel}>CONTRATADA</Text>
-            <Text style={s.signSub}>SAMPA TERRA CONSTRUCOES E ENGENHARIA LTDA</Text>
+            <Text style={s.signSub}>SAMPA TERRA TERRAPLANAGEM E DEMOLICAO LTDA</Text>
             <Text style={s.signSub}>CNPJ: 45.134.708/0001-73</Text>
             <Text style={[s.signSub, { marginTop: 4 }]}>RUBENS FIGUEIREDO LOURENÇO</Text>
           </View>

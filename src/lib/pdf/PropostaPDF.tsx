@@ -82,7 +82,7 @@ export interface BankInfo {
 
 export const DEFAULT_BANK_INFO: BankInfo = {
   banco: "INTER - 077",
-  empresa: "SAMPA TERRA CONSTRUÇÕES E ENGENHARIA LTDA",
+  empresa: "SAMPA TERRA TERRAPLANAGEM E DEMOLICAO LTDA",
   cnpj: "45.134.708/0001-73",
   agencia: "0001",
   conta: "8402098-9",
@@ -624,7 +624,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
           <View style={s.signBlock}>
             <View style={s.signLine} />
             <Text style={s.signLabel}>CONTRATADA</Text>
-            <Text style={s.signSub}>SAMPA TERRA CONSTRUÇÕES E ENGENHARIA LTDA</Text>
+            <Text style={s.signSub}>SAMPA TERRA TERRAPLANAGEM E DEMOLICAO LTDA</Text>
             <Text style={s.signSub}>CNPJ: 45.134.708/0001-73</Text>
             <Text style={[s.signSub, { marginTop: 4 }]}>RUBENS FIGUEIREDO LOURENÇO</Text>
           </View>

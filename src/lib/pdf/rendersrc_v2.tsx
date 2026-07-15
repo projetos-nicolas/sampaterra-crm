@@ -92,7 +92,7 @@ function PageFooter() {
   return (
     <View style={s.pageFooter} fixed>
       <Text style={s.pageFooterText}>
-        SAMPA TERRA CONSTRUÇÕES E ENGENHARIA | contato@sampaterra.com | (11) 99207-7014
+        SAMPA TERRA TERRAPLANAGEM E DEMOLICAO | contato@sampaterra.com | (11) 99207-7014
       </Text>
       <Text style={s.pageFooterText} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
     </View>
