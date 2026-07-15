@@ -513,7 +513,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* ── Painel esquerdo: abas + conteúdo ── */}
-          <div className="flex flex-col w-[45%] min-w-0 border-r border-gray-200 overflow-hidden">
+          <div className="flex flex-col w-[45%] min-w-0 min-h-0 border-r border-gray-200">
 
             {/* Tabs */}
             <div className="flex border-b border-gray-200 px-4 bg-gray-50 shrink-0 overflow-x-auto">
@@ -539,7 +539,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
 
           {/* Secoes */}
           {tab === "secoes" && (
@@ -965,7 +965,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           </div>{/* fim painel esquerdo */}
 
           {/* ── Painel direito: preview sempre visível ── */}
-          <div className="flex-1 min-w-0 bg-gray-100 overflow-hidden">
+          <div className="flex-1 min-w-0 min-h-0 bg-gray-100 overflow-hidden" style={{ height: "100%" }}>
             <PDFPreviewPanel data={pdfData} />
           </div>
 
