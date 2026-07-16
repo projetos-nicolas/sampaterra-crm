@@ -357,6 +357,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const [paymentNotes, setPaymentNotes] = useState("");
   const [obraAddress, setObraAddress] = useState("");
   const [sectionSpacings, setSectionSpacings] = useState<Record<string, number>>({});
+  const [rightPanel, setRightPanel] = useState<"canvas" | "preview">("canvas");
   const [imagePages, setImagePages] = useState<ImagePage[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
@@ -972,14 +973,54 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
             </div>{/* fim flex-1 overflow-auto */}
           </div>{/* fim painel esquerdo */}
 
-          {/* ── Painel direito: canvas interativo de diagramação ── */}
-          <div className="flex-1 min-w-0 min-h-0 overflow-hidden" style={{ position: "relative" }}>
-            <div style={{ position: "absolute", inset: 0 }}>
-              <InteractivePDFCanvas
-                sections={sections}
-                sectionSpacings={sectionSpacings}
-                onSpacingChange={handleSpacingChange}
-              />
+          {/* ── Painel direito: canvas interativo ou preview final ── */}
+          <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
+            {/* Toggle diagramação / preview */}
+            <div className="flex items-center gap-1 px-3 py-2 bg-[#3a3a3a] shrink-0">
+              <button
+                onClick={() => setRightPanel("canvas")}
+                className={
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors " +
+                  (rightPanel === "canvas"
+                    ? "bg-[#E8571A] text-white"
+                    : "text-gray-300 hover:text-white hover:bg-white/10")
+                }
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" />
+                </svg>
+                Diagramação
+              </button>
+              <button
+                onClick={() => setRightPanel("preview")}
+                className={
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors " +
+                  (rightPanel === "preview"
+                    ? "bg-white text-[#1A1A1A]"
+                    : "text-gray-300 hover:text-white hover:bg-white/10")
+                }
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Preview Final
+              </button>
+            </div>
+
+            {/* Conteúdo do painel */}
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ position: "relative" }}>
+              <div style={{ position: "absolute", inset: 0 }}>
+                {rightPanel === "canvas" ? (
+                  <InteractivePDFCanvas
+                    sections={sections}
+                    sectionSpacings={sectionSpacings}
+                    onSpacingChange={handleSpacingChange}
+                  />
+                ) : (
+                  <PDFPreviewPanel data={pdfData} />
+                )}
+              </div>
             </div>
           </div>
 
