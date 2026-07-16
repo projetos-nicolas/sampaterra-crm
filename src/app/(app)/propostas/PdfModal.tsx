@@ -755,14 +755,14 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                           className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/30"
                         />
                       </div>
-                      <div className="w-24">
+                      <div className="w-28">
                         <label className="text-xs text-gray-500">%</label>
                         <input
                           type="number"
                           step="0.01"
                           min="0"
                           max="100"
-                          value={parseFloat(pct.toFixed(4))}
+                          value={parseFloat(pct.toFixed(2))}
                           onChange={(e) => {
                             const newPct = parseFloat(e.target.value) || 0;
                             const newVal = parseFloat((proposal.totalValue * newPct / 100).toFixed(2));
