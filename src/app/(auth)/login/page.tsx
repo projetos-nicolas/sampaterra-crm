@@ -385,4 +385,7 @@ export default function LoginPage() {
         <p className="text-center text-white/40 text-xs mt-6">
           Sampa Terra e Construções Ltda
         </p>
-   
+      </div>
+    </div>
+  );
+}
