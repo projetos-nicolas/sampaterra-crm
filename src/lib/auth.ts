@@ -10,6 +10,8 @@ const loginSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // NextAuth v5 lê AUTH_SECRET; fallback para NEXTAUTH_SECRET (v4)
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   providers: [
     Credentials({
       name: "Credenciais",

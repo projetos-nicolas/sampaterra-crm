@@ -6,7 +6,15 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  serverExternalPackages: ["@prisma/client", "prisma", "resend"],
+  experimental: {
+    // Next.js 14: chave correta (em 15 virou serverExternalPackages top-level)
+    serverComponentsExternalPackages: [
+      "@prisma/client",
+      "prisma",
+      "resend",
+      "@react-pdf/renderer",
+    ],
+  },
   images: {
     remotePatterns: [
       {

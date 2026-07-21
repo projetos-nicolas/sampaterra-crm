@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/trpc/client";
 import { ProposalStatus } from "@prisma/client";
 import { useSession } from "next-auth/react";
-import { PdfModal } from "./PdfModal";
+import dynamic from "next/dynamic";
+const PdfModal = dynamic(() => import("./PdfModal").then((m) => m.PdfModal), { ssr: false });
 
 // ─── tipos auxiliares ─────────────────────────────────────────────────────────
 
