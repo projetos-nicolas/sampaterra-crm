@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { SampaTerraLogo } from "@/components/SampaTerraLogo";
 import { trpc } from "@/trpc/client";
 
@@ -234,7 +233,6 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 // ─── Página de Login ──────────────────────────────────────────────────────────
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -387,7 +385,4 @@ export default function LoginPage() {
         <p className="text-center text-white/40 text-xs mt-6">
           Sampa Terra e Construções Ltda
         </p>
-      </div>
-    </div>
-  );
-}
+   
