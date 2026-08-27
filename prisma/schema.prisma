@@ -556,15 +556,21 @@ model MachineMaintenance {
   id          String   @id @default(uuid())
   machineId   String   @map("machine_id")
   date        DateTime @default(now())
+  endDate     DateTime? @map("end_date")   // previsão de término; null = pontual / indeterminado
+  immobilizes Boolean  @default(false) @map("immobilizes") // se true, a máquina fica indisponível no período
   performedBy String   @map("performed_by") // texto livre — quem fez a manutenção
-  operador    String?  @map("operador")      // operador da máquina no momento
+  operador    String?  @map("operador")      // legado: nome digitado do operador
+  operatorId  String?  @map("operator_id")   // operador cadastrado (preferencial)
   description String   // o que foi feito
   cost        Decimal? @db.Decimal(12, 2)
   photos      String[] // storage paths das fotos da manutenção
   createdAt   DateTime @default(now()) @map("created_at")
 
-  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machine     Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  operator    Operator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
+  @@index([machineId])
+  @@index([date, endDate])
   @@map("machine_maintenances")
 }
 
@@ -587,7 +593,10 @@ model MachineRental {
   proposal   Proposal? @relation(fields: [proposalId], references: [id])
   lead       Lead?     @relation(fields: [leadId], references: [id])
   client     Client?   @relation(fields: [clientId], references: [id])
+  operators  RentalOperator[]
 
+  @@index([machineId])
+  @@index([startDate, endDate])
   @@map("machine_rentals")
 }
 
@@ -612,4 +621,51 @@ model MachinePreventiveMaintenance {
   machine      Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
 
   @@map("machine_preventive_maintenances")
+}
+
+// ─── OPERADORES DE CAMPO ──────────────────────────────────────────────────────
+
+enum OperatorRole {
+  operador
+  ajudante
+}
+
+model Operator {
+  id        String   @id @default(uuid())
+  name      String                            // único campo obrigatório
+  rg        String?
+  cpf       String?
+  role      String?                           // cargo (texto livre: Operador, Ajudante, Encarregado...)
+  phone     String?
+  active    Boolean  @default(true)           // false = desligado/arquivado, histórico preservado
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assignments  RentalOperator[]
+  maintenances MachineMaintenance[]
+
+  @@index([active])
+  @@map("operators")
+}
+
+/// Vínculo operador ↔ locação, com período próprio de cada pessoa na obra
+model RentalOperator {
+  id         String       @id @default(uuid())
+  rentalId   String       @map("rental_id")
+  operatorId String       @map("operator_id")
+  role       OperatorRole @default(operador)
+  startDate  DateTime     @map("start_date")
+  endDate    DateTime?    @map("end_date")    // null = ainda alocado
+  notes      String?
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  rental   MachineRental @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  operator Operator      @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+
+  @@index([rentalId])
+  @@index([operatorId])
+  @@index([startDate, endDate])
+  @@map("rental_operators")
 }

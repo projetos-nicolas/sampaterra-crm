@@ -6,6 +6,7 @@ import { getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
 import { MachineModal, STATUS_LABEL } from "@/components/frota/MachineModal";
 import { MachineDetail } from "@/components/frota/MachineDetail";
 import { LocacaoCalendar } from "@/components/frota/LocacaoCalendar";
+import { OperadoresTab } from "@/components/frota/OperadoresTab";
 
 const STATUS_COLOR: Record<string, string> = {
   disponivel: "bg-green-100 text-green-700",
@@ -18,7 +19,17 @@ function ManutencaoTab() {
   const { data: machines, refetch } = trpc.frota.listMachines.useQuery({ includeInactive: true });
   const [newMachine, setNewMachine] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const updateMachine = trpc.frota.updateMachine.useMutation({ onSuccess: () => refetch() });
+  const utils = trpc.useUtils();
+  // O status da máquina é derivado; o que se liga/desliga aqui é a máquina
+  // estar ou não em operação. Invalida todas as telas que mostram frota.
+  const setMachineActive = trpc.frota.setMachineActive.useMutation({
+    onSuccess: () => {
+      utils.frota.listMachines.invalidate();
+      utils.frota.listRentals.invalidate();
+      utils.frota.getMachine.invalidate();
+      refetch();
+    },
+  });
 
   return (
     <div>
@@ -84,12 +95,47 @@ function ManutencaoTab() {
                 </div>
               )}
 
-              {/* Toggle de disponibilidade */}
+              {/* Banner de manutenção imobilizando a máquina agora */}
+              {m.manutencaoAtiva && (
+                <div className="mt-3 -mx-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Em Manutenção</span>
+                  </div>
+                  <p className="text-xs font-semibold text-amber-800 truncate">{m.manutencaoAtiva.description}</p>
+                  <p className="text-[10px] text-amber-500 mt-0.5">
+                    desde {new Date(m.manutencaoAtiva.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
+                    {m.manutencaoAtiva.endDate
+                      ? ` · previsão ${new Date(m.manutencaoAtiva.endDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })}`
+                      : " · sem previsão de término"}
+                  </p>
+                </div>
+              )}
+
+              {/* Operadores alocados na locação em curso */}
+              {m.rentals?.[0]?.operators?.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {m.rentals[0].operators.map((ro: any) => (
+                    <span
+                      key={ro.id}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border truncate ${
+                        ro.role === "ajudante"
+                          ? "bg-purple-50 text-purple-600 border-purple-100"
+                          : "bg-gray-50 text-gray-600 border-gray-200"
+                      }`}
+                    >
+                      {ro.operator.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Rodapé: última manutenção + máquina em operação ou não */}
               <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
                 <div className="text-xs text-gray-500">
-                  {m.maintenances?.[0] ? (
+                  {m.ultimaManutencao ? (
                     <span className="text-gray-400">
-                      Manutenção: {new Date(m.maintenances[0].date).toLocaleDateString("pt-BR")}
+                      Últ. manutenção: {new Date(m.ultimaManutencao.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                     </span>
                   ) : (
                     <span className="text-gray-400">Sem manutenção registrada</span>
@@ -98,19 +144,22 @@ function ManutencaoTab() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const nextStatus = m.status === "disponivel" ? "inativa" : "disponivel";
-                    updateMachine.mutate({ id: m.id, data: { status: nextStatus } });
+                    setMachineActive.mutate({ id: m.id, active: !m.active });
                   }}
-                  disabled={updateMachine.isPending}
-                  title={m.status === "disponivel" ? "Marcar como indisponível" : "Marcar como disponível"}
+                  disabled={setMachineActive.isPending}
+                  title={
+                    m.active
+                      ? "Tirar de operação (vendida, sucateada, parada por tempo indeterminado)"
+                      : "Devolver à operação"
+                  }
                   className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border transition disabled:opacity-50 ${
-                    m.status === "disponivel"
+                    m.active
                       ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
                       : "border-gray-300 text-gray-500 bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${m.status === "disponivel" ? "bg-green-500" : "bg-gray-400"}`} />
-                  {m.status === "disponivel" ? "Disponível" : "Indisponível"}
+                  <span className={`w-1.5 h-1.5 rounded-full ${m.active ? "bg-green-500" : "bg-gray-400"}`} />
+                  {m.active ? "Em operação" : "Fora de operação"}
                 </button>
               </div>
             </div>
@@ -129,14 +178,14 @@ function ManutencaoTab() {
 }
 
 export default function FrotaPage() {
-  const [tab, setTab] = useState<"manutencao" | "locacao">("manutencao");
+  const [tab, setTab] = useState<"manutencao" | "locacao" | "operadores">("manutencao");
 
   return (
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4 sm:mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 uppercase tracking-wide">Frota</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Máquinas, manutenções e locações</p>
+          <p className="text-gray-400 text-sm mt-0.5">Máquinas, manutenções, locações e operadores</p>
         </div>
       </div>
 
@@ -144,6 +193,7 @@ export default function FrotaPage() {
         {[
           { id: "manutencao", label: "Manutenção" },
           { id: "locacao", label: "Locação" },
+          { id: "operadores", label: "Operadores" },
         ].map((t) => (
           <button
             key={t.id}
@@ -159,7 +209,9 @@ export default function FrotaPage() {
         ))}
       </div>
 
-      {tab === "manutencao" ? <ManutencaoTab /> : <LocacaoCalendar />}
+      {tab === "manutencao" && <ManutencaoTab />}
+      {tab === "locacao" && <LocacaoCalendar />}
+      {tab === "operadores" && <OperadoresTab />}
     </div>
   );
 }

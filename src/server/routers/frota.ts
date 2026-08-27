@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "../trpc";
-import { MachineStatus } from "@prisma/client";
+import { MachineStatus, OperatorRole } from "@prisma/client";
+import {
+  attachDerivedStatus,
+  findConflicts,
+  daysBetween,
+} from "../utils/machineAvailability";
 
 // ── schemas ───────────────────────────────────────────────────────────────────
 
@@ -12,18 +17,31 @@ const machineUpsertSchema = z.object({
   model: z.string().optional(),
   year: z.number().int().optional(),
   photoPath: z.string().optional(),
-  status: z.nativeEnum(MachineStatus).optional(),
   notes: z.string().optional(),
+  // `status` NAO entra mais aqui: e derivado das locacoes/manutencoes.
+  // Para tirar de operacao use setMachineActive.
 });
 
 const maintenanceUpsertSchema = z.object({
   machineId: z.string().uuid(),
   date: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional().nullable(),
+  immobilizes: z.boolean().optional(),
   performedBy: z.string().min(1),
   operador: z.string().optional(),
+  operatorId: z.string().uuid().optional().nullable(),
   description: z.string().min(1),
   cost: z.number().min(0).optional(),
   photos: z.array(z.string()).optional(),
+});
+
+/** Um operador (ou ajudante) alocado na locação, com período próprio. */
+const rentalOperatorSchema = z.object({
+  operatorId: z.string().uuid(),
+  role: z.nativeEnum(OperatorRole).default("operador"),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 const rentalUpsertSchema = z.object({
@@ -37,6 +55,7 @@ const rentalUpsertSchema = z.object({
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   notes: z.string().optional(),
+  operators: z.array(rentalOperatorSchema).optional(),
 });
 
 const preventiveUpsertSchema = z.object({
@@ -57,39 +76,84 @@ export const frotaRouter = createTRPCRouter({
     .input(z.object({ includeInactive: z.boolean().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const now = new Date();
-      return ctx.prisma.machine.findMany({
+      const machines = await ctx.prisma.machine.findMany({
         where: input?.includeInactive ? {} : { active: true },
         include: {
           _count: { select: { maintenances: true, rentals: true } },
-          maintenances: { orderBy: { date: "desc" }, take: 1 },
+          // Última manutenção registrada (para o rodapé do card)
+          maintenances: { orderBy: { date: "desc" }, take: 5 },
+          // Locações que cobrem hoje — usadas para derivar o status
           rentals: {
             where: { startDate: { lte: now }, endDate: { gte: now } },
-            take: 1,
             include: {
               client: { select: { id: true, name: true, company: true } },
+              operators: {
+                include: { operator: { select: { id: true, name: true, role: true } } },
+                orderBy: { startDate: "asc" },
+              },
             },
+            orderBy: { startDate: "asc" },
           },
         },
         orderBy: { name: "asc" },
+      });
+
+      // O status NÃO vem do banco: é calculado a partir do que ocupa a máquina
+      // hoje. Registrar locação ou manutenção já reflete aqui automaticamente.
+      return machines.map((m) => {
+        const withStatus = attachDerivedStatus(m, now);
+        const manutencaoAtiva = m.maintenances.find(
+          (mt) =>
+            mt.immobilizes &&
+            mt.date.getTime() <= now.getTime() &&
+            (mt.endDate == null || mt.endDate.getTime() >= now.getTime())
+        );
+        return {
+          ...withStatus,
+          // A manutenção que está imobilizando a máquina agora, se houver
+          manutencaoAtiva: manutencaoAtiva ?? null,
+          ultimaManutencao: m.maintenances[0] ?? null,
+        };
       });
     }),
 
   getMachine: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.prisma.machine.findUniqueOrThrow({
+      const now = new Date();
+      const machine = await ctx.prisma.machine.findUniqueOrThrow({
         where: { id: input.id },
         include: {
-          maintenances: { orderBy: { date: "desc" } },
+          maintenances: {
+            orderBy: { date: "desc" },
+            include: { operator: { select: { id: true, name: true } } },
+          },
           rentals: {
             orderBy: { startDate: "desc" },
             include: {
               client: { select: { id: true, name: true, company: true } },
               proposal: { select: { id: true, code: true } },
+              operators: {
+                include: { operator: { select: { id: true, name: true, role: true, active: true } } },
+                orderBy: { startDate: "asc" },
+              },
             },
           },
         },
       });
+
+      const withStatus = attachDerivedStatus(machine, now);
+
+      // Cada locação já vem com os dias calculados por pessoa
+      const rentals = machine.rentals.map((r) => ({
+        ...r,
+        operators: r.operators.map((ro) => ({
+          ...ro,
+          dias: daysBetween(ro.startDate, ro.endDate),
+        })),
+      }));
+
+      return { ...withStatus, rentals };
     }),
 
   createMachine: protectedProcedure
@@ -129,12 +193,17 @@ export const frotaRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const maintenanceDate = input.date ? new Date(input.date) : new Date();
 
+      const maintenanceEnd = input.endDate ? new Date(input.endDate) : null;
+
       const maintenance = await ctx.prisma.machineMaintenance.create({
         data: {
           machineId: input.machineId,
           date: maintenanceDate,
+          endDate: maintenanceEnd,
+          immobilizes: input.immobilizes ?? false,
           performedBy: input.performedBy,
           operador: input.operador,
+          operatorId: input.operatorId ?? null,
           description: input.description,
           cost: input.cost,
           photos: input.photos ?? [],
@@ -155,17 +224,30 @@ export const frotaRouter = createTRPCRouter({
         });
       }
 
-      return maintenance;
+      // Se a manutencao imobiliza a maquina, avisa sobre locacoes que caem no
+      // mesmo periodo — nao bloqueia, so devolve o alerta para a tela mostrar.
+      const conflitos = (input.immobilizes ?? false)
+        ? await findConflicts(ctx.prisma as any, {
+            machineId: input.machineId,
+            startDate: maintenanceDate,
+            endDate: maintenanceEnd,
+            ignoreMaintenanceId: maintenance.id,
+          })
+        : [];
+
+      return { ...maintenance, conflitos: conflitos.filter((c) => c.kind === "locacao") };
     }),
 
   updateMaintenance: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: maintenanceUpsertSchema.omit({ machineId: true }).partial() }))
     .mutation(async ({ ctx, input }) => {
+      const { date, endDate, ...rest } = input.data;
       return ctx.prisma.machineMaintenance.update({
         where: { id: input.id },
         data: {
-          ...input.data,
-          ...(input.data.date && { date: new Date(input.data.date) }),
+          ...rest,
+          ...(date && { date: new Date(date) }),
+          ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
         },
       });
     }),
@@ -186,7 +268,7 @@ export const frotaRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      return ctx.prisma.machineRental.findMany({
+      const rentals = await ctx.prisma.machineRental.findMany({
         where: {
           ...(input?.from && input?.to
             ? {
@@ -199,15 +281,91 @@ export const frotaRouter = createTRPCRouter({
           machine: { select: { id: true, name: true, category: true } },
           client: { select: { id: true, name: true, company: true } },
           proposal: { select: { id: true, code: true } },
+          operators: {
+            include: { operator: { select: { id: true, name: true, role: true, active: true } } },
+            orderBy: { startDate: "asc" },
+          },
         },
         orderBy: { startDate: "asc" },
       });
+
+      // Marca as locacoes que colidem com outra locacao da MESMA maquina, para
+      // a tela poder destacar o conflito mesmo depois de salvo.
+      const porMaquina = new Map<string, typeof rentals>();
+      for (const r of rentals) {
+        const arr = porMaquina.get(r.machineId) ?? [];
+        arr.push(r);
+        porMaquina.set(r.machineId, arr);
+      }
+
+      return rentals.map((r) => {
+        const irmas = porMaquina.get(r.machineId) ?? [];
+        const colide = irmas.filter(
+          (o) =>
+            o.id !== r.id &&
+            o.startDate.getTime() <= r.endDate.getTime() &&
+            o.endDate.getTime() >= r.startDate.getTime()
+        );
+        return {
+          ...r,
+          operators: r.operators.map((ro) => ({
+            ...ro,
+            dias: daysBetween(ro.startDate, ro.endDate),
+          })),
+          conflitaCom: colide.map((o) => ({
+            id: o.id,
+            title: o.title,
+            startDate: o.startDate,
+            endDate: o.endDate,
+          })),
+        };
+      });
+    }),
+
+  /**
+   * Checagem sob demanda usada pelo modal de locacao: dado maquina + periodo,
+   * devolve tudo que ja ocupa esse equipamento. Roda enquanto o usuario
+   * preenche as datas, antes de salvar.
+   */
+  checkAvailability: protectedProcedure
+    .input(
+      z.object({
+        machineId: z.string().uuid(),
+        startDate: z.string().datetime(),
+        endDate: z.string().datetime().optional().nullable(),
+        ignoreRentalId: z.string().uuid().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const conflitos = await findConflicts(ctx.prisma as any, {
+        machineId: input.machineId,
+        startDate: new Date(input.startDate),
+        endDate: input.endDate ? new Date(input.endDate) : null,
+        ignoreRentalId: input.ignoreRentalId,
+      });
+      return {
+        livre: conflitos.length === 0,
+        conflitos,
+        temManutencao: conflitos.some((c) => c.kind === "manutencao"),
+        temLocacao: conflitos.some((c) => c.kind === "locacao"),
+      };
     }),
 
   createRental: protectedProcedure
     .input(rentalUpsertSchema)
     .mutation(async ({ ctx, input }) => {
-      return ctx.prisma.machineRental.create({
+      const start = new Date(input.startDate);
+      const end = new Date(input.endDate);
+
+      // Avisa (nao bloqueia): a decisao final e do usuario, mas ele precisa
+      // ver com o que esta colidindo antes de confirmar.
+      const conflitos = await findConflicts(ctx.prisma as any, {
+        machineId: input.machineId,
+        startDate: start,
+        endDate: end,
+      });
+
+      const rental = await ctx.prisma.machineRental.create({
         data: {
           machineId: input.machineId,
           proposalId: input.proposalId,
@@ -216,25 +374,84 @@ export const frotaRouter = createTRPCRouter({
           title: input.title,
           operador: input.operador,
           location: input.location,
-          startDate: new Date(input.startDate),
-          endDate: new Date(input.endDate),
+          startDate: start,
+          endDate: end,
           notes: input.notes,
+          ...(input.operators?.length
+            ? {
+                operators: {
+                  create: input.operators.map((o) => ({
+                    operatorId: o.operatorId,
+                    role: o.role,
+                    startDate: new Date(o.startDate),
+                    endDate: o.endDate ? new Date(o.endDate) : null,
+                    notes: o.notes ?? null,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          operators: { include: { operator: { select: { id: true, name: true } } } },
         },
       });
+
+      return { ...rental, conflitos };
     }),
 
   updateRental: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: rentalUpsertSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
-      const { startDate, endDate, ...rest } = input.data;
-      return ctx.prisma.machineRental.update({
+      const { startDate, endDate, operators, ...rest } = input.data;
+
+      const atual = await ctx.prisma.machineRental.findUniqueOrThrow({
         where: { id: input.id },
-        data: {
-          ...rest,
-          ...(startDate && { startDate: new Date(startDate) }),
-          ...(endDate && { endDate: new Date(endDate) }),
-        },
+        select: { machineId: true, startDate: true, endDate: true },
       });
+
+      const novoInicio = startDate ? new Date(startDate) : atual.startDate;
+      const novoFim = endDate ? new Date(endDate) : atual.endDate;
+
+      const conflitos = await findConflicts(ctx.prisma as any, {
+        machineId: rest.machineId ?? atual.machineId,
+        startDate: novoInicio,
+        endDate: novoFim,
+        ignoreRentalId: input.id,
+      });
+
+      // A lista de operadores e substituida por inteiro quando enviada:
+      // o modal manda sempre o estado completo da alocacao.
+      const rental = await ctx.prisma.$transaction(async (tx) => {
+        if (operators !== undefined) {
+          await tx.rentalOperator.deleteMany({ where: { rentalId: input.id } });
+        }
+        return tx.machineRental.update({
+          where: { id: input.id },
+          data: {
+            ...rest,
+            ...(startDate && { startDate: novoInicio }),
+            ...(endDate && { endDate: novoFim }),
+            ...(operators?.length
+              ? {
+                  operators: {
+                    create: operators.map((o) => ({
+                      operatorId: o.operatorId,
+                      role: o.role,
+                      startDate: new Date(o.startDate),
+                      endDate: o.endDate ? new Date(o.endDate) : null,
+                      notes: o.notes ?? null,
+                    })),
+                  },
+                }
+              : {}),
+          },
+          include: {
+            operators: { include: { operator: { select: { id: true, name: true } } } },
+          },
+        });
+      });
+
+      return { ...rental, conflitos };
     }),
 
   deleteRental: protectedProcedure

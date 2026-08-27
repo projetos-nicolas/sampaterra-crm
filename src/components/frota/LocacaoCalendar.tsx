@@ -209,13 +209,43 @@ export function LocacaoCalendar() {
                 >
                   <span className={`w-3 h-3 rounded-full flex-shrink-0 ${p.dot}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
+                      {/* Conflito com outra locação da mesma máquina */}
+                      {r.conflitaCom?.length > 0 && (
+                        <span
+                          title={`Conflito com: ${r.conflitaCom.map((c: any) => c.title).join(", ")}`}
+                          className="shrink-0 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950"
+                        >
+                          ⚠ conflito
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5 truncate">
                       {r.machine?.name}
-                      {r.operador ? ` · Op: ${r.operador}` : ""}
                       {r.location ? ` · 📍 ${r.location}` : ""}
                       {r.client ? ` · ${r.client.company || r.client.name}` : ""}
                     </p>
+                    {/* Equipe alocada, com os dias de cada um */}
+                    {r.operators?.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {r.operators.map((ro: any) => (
+                          <span
+                            key={ro.id}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                              ro.role === "ajudante"
+                                ? "bg-purple-50 text-purple-600 border-purple-100"
+                                : "bg-blue-50 text-blue-600 border-blue-100"
+                            }`}
+                          >
+                            {ro.operator?.name}
+                            {ro.dias != null ? ` · ${ro.dias}d` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    ) : r.operador ? (
+                      <p className="text-[11px] text-gray-400 mt-0.5">Op. (registro antigo): {r.operador}</p>
+                    ) : null}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs font-semibold text-gray-700">

@@ -47,7 +47,6 @@ export function MachineModal({
     brand: machine?.brand ?? "",
     model: machine?.model ?? "",
     year: machine?.year ? String(machine.year) : "",
-    status: machine?.status ?? "disponivel",
     notes: machine?.notes ?? "",
   });
   const [photoPath, setPhotoPath] = useState(machine?.photoPath ?? "");
@@ -98,7 +97,6 @@ export function MachineModal({
       model: form.model || undefined,
       year: form.year ? parseInt(form.year) : undefined,
       photoPath: photoPath || undefined,
-      status: form.status as any,
       notes: form.notes || undefined,
     };
     if (isEdit && machine) {
@@ -184,11 +182,14 @@ export function MachineModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-            <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputCls}>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
+          {/* O status não é mais digitado: ele é calculado a partir das
+              locações e manutenções registradas para esta máquina. */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-0.5">Status</p>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Definido automaticamente pelas locações e manutenções desta máquina.
+              Para tirá-la de operação, use o botão <strong>Em operação</strong> no card da lista.
+            </p>
           </div>
 
           <div>

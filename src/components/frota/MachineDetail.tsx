@@ -181,7 +181,7 @@ export function MachineDetail({ machineId, onClose }: { machineId: string; onClo
   const [editMachine, setEditMachine] = useState(false);
   const [maintModal, setMaintModal] = useState<{ open: boolean; maintenance?: any }>({ open: false });
   const [prevModal, setPrevModal] = useState<{ open: boolean; item?: any }>({ open: false });
-  const [tab, setTab] = useState<"historico" | "preventivas">("historico");
+  const [tab, setTab] = useState<"historico" | "preventivas" | "locacoes">("historico");
 
   if (!machine) return null;
 
@@ -231,6 +231,7 @@ export function MachineDetail({ machineId, onClose }: { machineId: string; onClo
           {([
             { id: "historico", label: "Histórico de Manutenções" },
             { id: "preventivas", label: `Preventivas${pendentes.length > 0 ? ` (${pendentes.length})` : ""}` },
+            { id: "locacoes", label: `Locações${machine.rentals?.length ? ` (${machine.rentals.length})` : ""}` },
           ] as const).map((t) => (
             <button
               key={t.id}
@@ -268,10 +269,28 @@ export function MachineDetail({ machineId, onClose }: { machineId: string; onClo
                 {machine.maintenances.map((m: any) => (
                   <div key={m.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition cursor-pointer" onClick={() => setMaintModal({ open: true, maintenance: m })}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{m.performedBy}</p>
-                      <p className="text-xs text-gray-400">{new Date(m.date).toLocaleDateString("pt-BR")}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{m.performedBy}</p>
+                        {m.immobilizes && (
+                          <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            imobiliza
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(m.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
+                        {m.endDate
+                          ? ` → ${new Date(m.endDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })}`
+                          : m.immobilizes
+                          ? " → em aberto"
+                          : ""}
+                      </p>
                     </div>
-                    {m.operador && <p className="text-xs text-gray-500 mt-0.5">Operador: {m.operador}</p>}
+                    {(m.operator?.name || m.operador) && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Operador: {m.operator?.name ?? m.operador}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 mt-0.5">{m.description}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       {m.cost ? <p className="text-xs font-semibold text-gray-500">R$ {Number(m.cost).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p> : <span />}
@@ -380,6 +399,79 @@ export function MachineDetail({ machineId, onClose }: { machineId: string; onClo
                     ))}
                   </>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Locações — quem operou a máquina e por quantos dias */}
+        {tab === "locacoes" && (
+          <div className="p-6">
+            <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide mb-3">
+              Locações desta máquina
+            </h3>
+            {!machine.rentals || machine.rentals.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-sm bg-gray-50 rounded-lg">
+                Nenhuma locação registrada ainda.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[45vh] overflow-y-auto">
+                {machine.rentals.map((r: any) => (
+                  <div key={r.id} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{r.title}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {r.client ? r.client.company || r.client.name : "Sem cliente vinculado"}
+                          {r.location ? ` · 📍 ${r.location}` : ""}
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(r.startDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })} →{" "}
+                        {new Date(r.endDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
+                      </p>
+                    </div>
+
+                    {r.operators?.length > 0 ? (
+                      <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                        {r.operators.map((ro: any) => (
+                          <div key={ro.id} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full shrink-0 ${
+                                  ro.role === "ajudante"
+                                    ? "bg-purple-100 text-purple-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {ro.role}
+                              </span>
+                              <span className="text-xs text-gray-700 truncate">
+                                {ro.operator?.name}
+                                {ro.operator && ro.operator.active === false ? " (inativo)" : ""}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">
+                              {new Date(ro.startDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })} →{" "}
+                              {ro.endDate
+                                ? new Date(ro.endDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })
+                                : "em aberto"}
+                              {ro.dias != null ? ` · ${ro.dias}d` : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : r.operador ? (
+                      <p className="text-[11px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+                        Operador (registro antigo): {r.operador}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+                        Nenhuma equipe registrada nesta locação.
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

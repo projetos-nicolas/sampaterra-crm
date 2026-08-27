@@ -12,6 +12,7 @@ import { clientFilesRouter } from "./clientFiles";
 import { escritorioRouter } from "./escritorio";
 import { authRouter } from "./auth";
 import { frotaRouter } from "./frota";
+import { operadoresRouter } from "./operadores";
 
 export const appRouter = createTRPCRouter({
   clients: clientsRouter,
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
   escritorio: escritorioRouter,
   auth: authRouter,
   frota: frotaRouter,
+  operadores: operadoresRouter,
 });
 
 export type AppRouter = typeof appRouter;
