@@ -4,6 +4,9 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
 import type { PDFSection, PagamentoItem, BankInfo, ImageSlot, ImagePage } from "@/lib/pdf/PropostaPDF";
+import { parseLayout, EMPTY_LAYOUT, type ProposalLayout } from "@/lib/pdf/layout";
+import { LayoutEditor } from "@/components/pdf/LayoutEditor";
+import { EQUIP_IMGS } from "@/lib/pdf/equipAssets";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
 import { InteractivePDFCanvas } from "./InteractivePDFCanvas";
 
@@ -357,7 +360,10 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const [paymentNotes, setPaymentNotes] = useState("");
   const [obraAddress, setObraAddress] = useState("");
   const [sectionSpacings, setSectionSpacings] = useState<Record<string, number>>({});
-  const [rightPanel, setRightPanel] = useState<"canvas" | "preview">("canvas");
+  const [rightPanel, setRightPanel] = useState<"canvas" | "editor" | "preview">("canvas");
+  // Camada livre de diagramação, carregada do que já estiver gravado na proposta
+  const [layout, setLayout] = useState<ProposalLayout>(() => parseLayout((proposal as any).pdfLayout));
+  const [savingLayout, setSavingLayout] = useState(false);
   const [imagePages, setImagePages] = useState<ImagePage[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
@@ -404,7 +410,10 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     paymentNotes: paymentNotes.trim() || undefined,
     imagens: imagePages,
     bankInfo,
-  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings]);
+    layout,
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings, layout]);
+
+  const saveLayoutMut = trpc.proposals.savePdfLayout.useMutation();
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -992,6 +1001,20 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                 Diagramação
               </button>
               <button
+                onClick={() => setRightPanel("editor")}
+                className={
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors " +
+                  (rightPanel === "editor"
+                    ? "bg-[#F5A623] text-white"
+                    : "text-gray-300 hover:text-white hover:bg-white/10")
+                }
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 20h16M6 16l9-9 3 3-9 9H6v-3z" />
+                </svg>
+                Editor Livre
+              </button>
+              <button
                 onClick={() => setRightPanel("preview")}
                 className={
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors " +
@@ -1016,6 +1039,40 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                     sections={sections}
                     sectionSpacings={sectionSpacings}
                     onSpacingChange={handleSpacingChange}
+                  />
+                ) : rightPanel === "editor" ? (
+                  <LayoutEditor
+                    initialLayout={layout}
+                    sections={sections
+                      .filter((sec) => sec.enabled)
+                      .map((sec) => ({ id: sec.id, title: sec.title, content: sec.content }))}
+                    heroSrc={EQUIP_IMGS.locacaoMaquinas}
+                    imageOptions={[
+                      { label: "Terraplanagem", src: EQUIP_IMGS.terraplanagem },
+                      { label: "Demolição", src: EQUIP_IMGS.demolicao },
+                      { label: "Locação de máquinas", src: EQUIP_IMGS.locacaoMaquinas },
+                      { label: "Locação com operador", src: EQUIP_IMGS.locacaoOperador },
+                      ...imagePages.flatMap((pg, pi) =>
+                        pg.slots.map((sl, si) => ({
+                          label: `Foto da proposta ${pi + 1}.${si + 1}`,
+                          src: sl.src,
+                        }))
+                      ),
+                    ]}
+                    onChange={setLayout}
+                    saving={savingLayout}
+                    onSave={async (l) => {
+                      setSavingLayout(true);
+                      try {
+                        await saveLayoutMut.mutateAsync({
+                          id: proposal.id,
+                          layout: l.elements.length || l.detached.length ? (l as any) : null,
+                        });
+                        setLayout(l);
+                      } finally {
+                        setSavingLayout(false);
+                      }
+                    }}
                   />
                 ) : (
                   <PDFPreviewPanel data={pdfData} />

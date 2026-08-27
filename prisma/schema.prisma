@@ -255,6 +255,10 @@ model Proposal {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
+  /// Camada livre de diagramação do PDF (ver src/lib/pdf/layout.ts).
+  /// Null = proposta usa só o layout automático.
+  pdfLayout       Json?          @map("pdf_layout")
+
   // Relações
   lead            Lead           @relation(fields: [leadId], references: [id])
   client          Client         @relation(fields: [clientId], references: [id])

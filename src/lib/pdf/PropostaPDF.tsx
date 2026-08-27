@@ -18,6 +18,8 @@ import {
 import { PORTFOLIO_IMGS } from "./portfolioAssets";
 import { COVER_IMGS } from "./coverAssets";
 import { EQUIP_IMGS } from "./equipAssets";
+import { LayoutLayer } from "./LayoutLayer";
+import { AUTO_BLOCKS, secaoBlockId, isDetached, type ProposalLayout } from "./layout";
 
 // Desativa a hifenização automática (estava partindo "PROJETOS" em "PROJE-TOS")
 Font.registerHyphenationCallback((word) => [word]);
@@ -31,7 +33,7 @@ const BRAND_TEXT_COL_RIGHT = 300;
 const BRAND_HERO_SIZE = 220;
 const BRAND_HERO_TOP = 56;
 const BRAND_HERO_LEFT = 545 - BRAND_HERO_SIZE;
-const HEX_SIZE = 78;
+const HEX_SIZE = 96;
 
 // ─── Tipos Exportados ────────────────────────────────────────────────────────
 
@@ -92,6 +94,8 @@ export interface PropostaPDFData {
   paymentNotes?: string;
   imagens: ImagePage[];
   bankInfo?: BankInfo;
+  /** Camada livre de diagramação — desenhada por cima de cada página. */
+  layout?: ProposalLayout | null;
 }
 
 export interface BankInfo {
@@ -216,13 +220,13 @@ const s = StyleSheet.create({
 
   brandFullCol:   { width: "100%", marginTop: 18 },
 
-  hexRow:         { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
-  hexItem:        { alignItems: "center", width: 88 },
+  hexRow:         { flexDirection: "row", flexWrap: "wrap", width: BRAND_TEXT_COL_RIGHT - 50, marginTop: 18 },
+  hexItem:        { alignItems: "center", width: (BRAND_TEXT_COL_RIGHT - 50) / 2, marginBottom: 20 },
   hexBar:         { width: 22, height: 2, backgroundColor: C.orange, marginTop: 7, marginBottom: 4 },
-  hexLabel:       { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: C.teal, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
+  hexLabel:       { fontSize: 7.2, fontFamily: "Helvetica-Bold", color: C.teal, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
   // variante usada no item "Locação com Operador" — alto contraste sobre a faixa escura (preto/teal)
   hexBarYellow:   { width: 22, height: 2, backgroundColor: "#FFC107", marginTop: 7, marginBottom: 4 },
-  hexLabelYellow: { fontSize: 6.3, fontFamily: "Helvetica-Bold", color: "#FFC107", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
+  hexLabelYellow: { fontSize: 7.2, fontFamily: "Helvetica-Bold", color: "#FFC107", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.2 },
   // selo circular (foto real de equipamento em destaque, recorte já circular)
   hexCircleWrap:  { width: HEX_SIZE, height: HEX_SIZE, borderRadius: HEX_SIZE / 2, overflow: "hidden" },
   hexCircleImg:   { width: "100%", height: "100%", objectFit: "cover" },
@@ -464,6 +468,25 @@ function HexImage({ src, size = 100 }: { src: string; size?: number }) {
 
 // ─── Documento Principal ──────────────────────────────────────────────────────
 
+/**
+ * Envolve um bloco do layout automático. Se o usuário soltou esse bloco no
+ * editor, ele NÃO é desenhado aqui — a versão solta é desenhada pela
+ * <LayoutLayer>, na folha e na posição que ele escolheu. O fluxo se refecha
+ * sozinho, sem deixar buraco.
+ */
+function AutoBlock({
+  id,
+  layout,
+  children,
+}: {
+  id: string;
+  layout?: ProposalLayout | null;
+  children: React.ReactNode;
+}) {
+  if (isDetached(layout, id)) return null;
+  return <>{children}</>;
+}
+
 export function PropostaPDF({ data }: { data: PropostaPDFData }) {
   const clientDisplay = data.clientCompany || data.clientName;
 
@@ -497,6 +520,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <Text style={s.coverSiteText}>www.sampaterra.com.br</Text>
           </View>
         </View>
+        <LayoutLayer layout={data.layout} page="capa" />
       </Page>
 
       {/* ── QUEM SOMOS + OBRAS E PROJETOS (página institucional) ── */}
@@ -505,9 +529,11 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         <BrandDiagonalBands />
 
         {/* foto de máquina Sampa Terra em operação, recortada em hexágono, canto superior direito */}
-        <View style={s.brandHeroWrap} fixed>
-          <HexImage src={EQUIP_IMGS.locacaoMaquinas} size={BRAND_HERO_SIZE} />
-        </View>
+        <AutoBlock id={AUTO_BLOCKS.instHero} layout={data.layout}>
+          <View style={s.brandHeroWrap} fixed>
+            <HexImage src={EQUIP_IMGS.locacaoMaquinas} size={BRAND_HERO_SIZE} />
+          </View>
+        </AutoBlock>
 
         <View style={s.brandInner}>
           <View style={s.brandTopRow}>
@@ -519,49 +545,65 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
 
           {/* Quem Somos — coluna de texto estreita, livre das faixas diagonais */}
           <View style={s.brandTextCol}>
-            <Text style={s.brandH1}>Quem Somos</Text>
-            <Text style={s.brandBody}>
-              A Sampa Terra é referência no mercado em terraplanagem e locação de
-              máquinas, contando com equipamentos modernos e operadores qualificados,
-              garantindo uma execução rápida, segura e eficiente em cada projeto.
-            </Text>
-            <Text style={s.brandBody}>
-              Atuamos com frota própria e equipe especializada, prontos para atender
-              construtoras e investidores com agilidade na entrega e compromisso total
-              com o resultado final de cada obra.
-            </Text>
+            <AutoBlock id={AUTO_BLOCKS.instQuemSomos} layout={data.layout}>
+              <Text style={s.brandH1}>Quem Somos</Text>
+            </AutoBlock>
+            <AutoBlock id={AUTO_BLOCKS.instQuemSomosTxt1} layout={data.layout}>
+              <Text style={s.brandBody}>
+                A Sampa Terra é referência no mercado em terraplanagem e locação de
+                máquinas, contando com equipamentos modernos e operadores qualificados,
+                garantindo uma execução rápida, segura e eficiente em cada projeto.
+              </Text>
+            </AutoBlock>
+            <AutoBlock id={AUTO_BLOCKS.instQuemSomosTxt2} layout={data.layout}>
+              <Text style={s.brandBody}>
+                Atuamos com frota própria e equipe especializada, prontos para atender
+                construtoras e investidores com agilidade na entrega e compromisso total
+                com o resultado final de cada obra.
+              </Text>
+            </AutoBlock>
           </View>
 
           {/* Serviços — heading/parágrafo na mesma coluna estreita; grid de hexágonos em largura cheia */}
-          <View style={s.brandFullCol}>
-            <View style={s.brandTextCol}>
-              <Text style={s.brandH1}>Nossos Serviços</Text>
-              <Text style={s.brandBody}>
-                Da terraplanagem à demolição, oferecemos a máquina e o operador certos
-                para cada etapa da obra — com equipamentos modernos e equipe própria
-                qualificada.
-              </Text>
+          <View style={s.brandTextCol}>
+            <View>
+              <AutoBlock id={AUTO_BLOCKS.instServicos} layout={data.layout}>
+                <Text style={s.brandH1}>Nossos Serviços</Text>
+              </AutoBlock>
+              <AutoBlock id={AUTO_BLOCKS.instServicosTxt} layout={data.layout}>
+                <Text style={s.brandBody}>
+                  Da terraplanagem à demolição, oferecemos a máquina e o operador certos
+                  para cada etapa da obra — com equipamentos modernos e equipe própria
+                  qualificada.
+                </Text>
+              </AutoBlock>
             </View>
 
             {/* Grid de fotos reais de equipamentos/serviços — usa toda a largura útil da página */}
+            <AutoBlock id={AUTO_BLOCKS.instHexGrid} layout={data.layout}>
             <View style={s.hexRow}>
+              {/* Todos os cartões ficam na coluna clara, então todos usam o
+                  mesmo estilo — a variante amarela existia só para o item que
+                  antes caía sobre a faixa preta. */}
               {([
-                { img: EQUIP_IMGS.terraplanagem,   label: "TERRAPLANAGEM",          variant: "dark" as const },
-                { img: EQUIP_IMGS.demolicao,       label: "DEMOLIÇÃO",              variant: "dark" as const },
-                { img: EQUIP_IMGS.locacaoMaquinas, label: "LOCAÇÃO DE MÁQUINAS",    variant: "dark" as const },
-                { img: EQUIP_IMGS.locacaoOperador, label: "LOCAÇÃO COM OPERADOR",   variant: "yellow" as const },
+                { img: EQUIP_IMGS.terraplanagem,   label: "TERRAPLANAGEM" },
+                { img: EQUIP_IMGS.demolicao,       label: "DEMOLIÇÃO" },
+                { img: EQUIP_IMGS.locacaoMaquinas, label: "LOCAÇÃO DE MÁQUINAS" },
+                { img: EQUIP_IMGS.locacaoOperador, label: "LOCAÇÃO COM OPERADOR" },
               ]).map((item) => (
                 <View key={item.label} style={s.hexItem}>
                   <HexImage src={item.img} size={HEX_SIZE} />
-                  <View style={item.variant === "yellow" ? s.hexBarYellow : s.hexBar} />
-                  <Text style={item.variant === "yellow" ? s.hexLabelYellow : s.hexLabel}>{item.label}</Text>
+                  <View style={s.hexBar} />
+                  <Text style={s.hexLabel}>{item.label}</Text>
                 </View>
               ))}
             </View>
+            </AutoBlock>
           </View>
         </View>
 
         <PageFooter />
+        <LayoutLayer layout={data.layout} page="institucional" />
       </Page>
 
       {/* ── DADOS DO CLIENTE + SEÇÕES DINÂMICAS ── */}
@@ -569,6 +611,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         <PageHeader code={data.code} title={data.title} />
 
         {/* Dados do Cliente */}
+        <AutoBlock id={AUTO_BLOCKS.contClienteBox} layout={data.layout}>
         <View style={{ marginBottom: 16 }}>
           <Text style={s.sectionTitle}>Dados do Cliente</Text>
           <View style={s.clientBox}>
@@ -615,21 +658,25 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             )}
           </View>
         </View>
+        </AutoBlock>
 
-        {/* Seções dinâmicas (fluem para páginas adicionais automaticamente) */}
+        {/* Seções dinâmicas (fluem para páginas adicionais automaticamente).
+            Cada uma pode ser solta individualmente no editor. */}
         {data.sections.map((section, i) => (
-          <SectionBlock
-            key={section.id}
-            number={i + 1}
-            section={section}
-            pagamentos={data.pagamentos}
-            valorTotal={data.valorTotal}
-            paymentNotes={data.paymentNotes}
-            bankInfo={data.bankInfo}
-          />
+          <AutoBlock key={section.id} id={secaoBlockId(section.id)} layout={data.layout}>
+            <SectionBlock
+              number={i + 1}
+              section={section}
+              pagamentos={data.pagamentos}
+              valorTotal={data.valorTotal}
+              paymentNotes={data.paymentNotes}
+              bankInfo={data.bankInfo}
+            />
+          </AutoBlock>
         ))}
 
         <PageFooter />
+        <LayoutLayer layout={data.layout} page="conteudo" />
       </Page>
 
       {/* ── PÁGINAS DE IMAGENS (múltiplas imagens por página, posicionamento livre) ── */}
@@ -667,6 +714,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
               );
             })}
           </View>
+          <LayoutLayer layout={data.layout} page="imagens" pageKey={page.id} />
           <PageFooter />
         </Page>
       ))}
@@ -714,6 +762,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         </View>
 
         <PageFooter />
+        <LayoutLayer layout={data.layout} page="assinatura" />
       </Page>
     </Document>
   );

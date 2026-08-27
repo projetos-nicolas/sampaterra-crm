@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, superAdminProcedure } from "../trpc";
-import { ProposalStatus } from "@prisma/client";
+import { ProposalStatus, Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -124,6 +124,32 @@ export const proposalsRouter = createTRPCRouter({
           lead: { select: { id: true, title: true } },
           items: { orderBy: { sortOrder: "asc" } },
         },
+      });
+    }),
+
+  /**
+   * Grava a camada livre de diagramação do PDF.
+   * Salva o layout inteiro de uma vez — o editor manda sempre o estado
+   * completo, o que evita divergência entre o que está na tela e no banco.
+   * `null` limpa a diagramação e devolve a proposta ao layout automático.
+   */
+  savePdfLayout: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        layout: z
+          .object({
+            v: z.literal(1),
+            elements: z.array(z.record(z.any())),
+          })
+          .nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.proposal.update({
+        where: { id: input.id },
+        data: { pdfLayout: input.layout ?? Prisma.DbNull },
+        select: { id: true, pdfLayout: true, updatedAt: true },
       });
     }),
 
