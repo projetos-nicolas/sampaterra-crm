@@ -6,7 +6,6 @@ import {
   makeText,
   makeImage,
   makeRect,
-  type LayerPageKind,
   type ProposalLayout,
   type LayoutElement,
 } from "@/lib/pdf/layout";
@@ -14,24 +13,18 @@ import { useLayoutEditor } from "./useLayoutEditor";
 import { PageCanvas } from "./PageCanvas";
 import { LayoutInspector } from "./LayoutInspector";
 import { LayerList } from "./LayerList";
+import { usePdfPages } from "./usePdfPages";
 import { AUTO_BLOCK_DEFS, sectionBlockDef, type AutoBlockDef } from "./autoBlocks";
 
-const PAGES: { id: LayerPageKind; label: string }[] = [
-  { id: "capa", label: "Capa" },
-  { id: "institucional", label: "Institucional" },
-  { id: "conteudo", label: "Conteúdo" },
-  { id: "imagens", label: "Imagens" },
-  { id: "assinatura", label: "Assinatura" },
-];
-
 /**
- * Editor da camada livre — o "Canva" da proposta.
+ * Editor da proposta — a folha real do PDF ao fundo, camada livre por cima.
  *
- * Trabalha sobre UMA folha por vez (o seletor no topo troca), mas o estado é
- * o layout inteiro: por isso mover um elemento de folha é só trocar o campo
- * `page` dele no inspetor, sem recortar e colar nada.
+ * As folhas vêm de `usePdfPages`, que gera o PDF e rasteriza cada página.
+ * Assim o usuário vê quantas folhas existem de verdade (incluindo as que o
+ * escopo criou) e edita sobre o documento, não sobre uma aproximação.
  */
 export function LayoutEditor({
+  pdfData,
   initialLayout,
   sections,
   imageOptions,
@@ -40,6 +33,7 @@ export function LayoutEditor({
   onSave,
   saving,
 }: {
+  pdfData: any;
   initialLayout?: ProposalLayout | null;
   sections: { id: string; title: string; content: string }[];
   imageOptions: { label: string; src: string }[];
@@ -49,25 +43,33 @@ export function LayoutEditor({
   saving?: boolean;
 }) {
   const ed = useLayoutEditor(initialLayout);
-  const [page, setPage] = useState<LayerPageKind>("institucional");
-  const [zoom, setZoom] = useState(0.62);
+  const [pageIndex, setPageIndex] = useState(1);
+  const [zoom, setZoom] = useState(0.68);
+  const [showLayers, setShowLayers] = useState(true);
+
+  const { pages, rendering, erro } = usePdfPages(pdfData, true);
+  const total = pages.length || 1;
 
   useEffect(() => { onChange?.(ed.layout); }, [ed.layout, onChange]);
+  // Se o documento encolheu, não deixa a folha aberta apontar para o vazio
+  useEffect(() => {
+    if (pages.length && pageIndex > pages.length) setPageIndex(pages.length);
+  }, [pages.length, pageIndex]);
 
   const autoBlocks: AutoBlockDef[] = useMemo(
     () => [...AUTO_BLOCK_DEFS, ...sections.map((s, i) => sectionBlockDef(s, i))],
     [sections]
   );
 
-  const daPagina = ed.layout.elements.filter((e) => e.page === page);
+  const daFolha = ed.layout.elements.filter((e) => e.pageIndex === pageIndex);
   const atual = ed.layout.elements.find((e) => ed.selected.includes(e.id)) ?? null;
+  const folhaAtual = pages.find((p) => p.index === pageIndex);
 
-  // Atalhos: só quando o foco não está num campo de formulário
   useEffect(() => {
     function onKey(ev: KeyboardEvent) {
-      const tag = (ev.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "select" || tag === "textarea") return;
-      if ((ev.target as HTMLElement)?.isContentEditable) return;
+      const t = ev.target as HTMLElement;
+      const tag = t?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "select" || tag === "textarea" || t?.isContentEditable) return;
 
       const sel = ed.selected;
       if (!sel.length) return;
@@ -82,16 +84,19 @@ export function LayoutEditor({
         }));
       }
       if (ev.key === "Delete" || ev.key === "Backspace") {
-        ev.preventDefault();
-        ed.commit();
-        ed.remove(sel);
+        ev.preventDefault(); ed.commit(); ed.remove(sel);
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "d") {
         ev.preventDefault();
         const e = ed.layout.elements.find((x) => x.id === sel[0]);
         if (e) {
           ed.commit();
-          ed.add({ ...JSON.parse(JSON.stringify(e)), id: "el_" + Math.random().toString(36).slice(2, 10), x: e.x + 12, y: e.y + 12, name: e.name + " (cópia)", sourceId: undefined });
+          ed.add({
+            ...JSON.parse(JSON.stringify(e)),
+            id: "el_" + Math.random().toString(36).slice(2, 10),
+            x: e.x + 12, y: e.y + 12,
+            name: e.name + " (cópia)", sourceId: undefined,
+          });
         }
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") {
@@ -103,21 +108,24 @@ export function LayoutEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [ed]);
 
-  const btn = "px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent";
+  const btn =
+    "px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent";
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Barra de ferramentas */}
-      <div className="flex items-center gap-1 flex-wrap px-2.5 py-2 border-b border-gray-200 bg-gray-50">
+    <div className="flex flex-col h-full min-h-0 bg-white">
+      {/* Ferramentas */}
+      <div className="flex items-center gap-1 flex-wrap px-2.5 py-2 border-b border-gray-200 bg-gray-50 shrink-0">
         <button className={btn} onClick={ed.undo} disabled={!ed.canUndo}>Desfazer</button>
         <button className={btn} onClick={ed.redo} disabled={!ed.canRedo}>Refazer</button>
         <span className="w-px h-5 bg-gray-200 mx-1" />
-        <button className={btn} onClick={() => { ed.commit(); ed.add(makeText(page, { y: 300 })); }}>+ Texto</button>
+        <button className={btn} onClick={() => { ed.commit(); ed.add(makeText(pageIndex, { y: 300 })); }}>
+          + Texto
+        </button>
         <button
           className={btn}
           onClick={() => {
             ed.commit();
-            ed.add(makeText(page, {
+            ed.add(makeText(pageIndex, {
               name: "Frase em destaque", y: 340, h: 34,
               text: "Prazo de execução: 45 dias", size: 12, weight: 700, highlight: "bar",
             }));
@@ -128,19 +136,37 @@ export function LayoutEditor({
         <button
           className={btn}
           disabled={!imageOptions.length}
-          onClick={() => { ed.commit(); ed.add(makeImage(page, imageOptions[0]?.src ?? "", { y: 380 })); }}
+          onClick={() => { ed.commit(); ed.add(makeImage(pageIndex, imageOptions[0]?.src ?? "", { y: 380 })); }}
         >
           + Foto
         </button>
-        <button className={btn} onClick={() => { ed.commit(); ed.add(makeRect(page, { y: 430 })); }}>+ Forma</button>
+        <button className={btn} onClick={() => { ed.commit(); ed.add(makeRect(pageIndex, { y: 430 })); }}>
+          + Forma
+        </button>
         <span className="w-px h-5 bg-gray-200 mx-1" />
-        <button className={btn} onClick={() => setZoom((z) => Math.max(0.3, z - 0.08))}>−</button>
+        <button className={btn} onClick={() => setZoom((z) => Math.max(0.25, z - 0.08))}>−</button>
         <span className="text-[12px] font-mono text-gray-500 w-11 text-center">{Math.round(zoom * 100)}%</span>
-        <button className={btn} onClick={() => setZoom((z) => Math.min(1.4, z + 0.08))}>+</button>
+        <button className={btn} onClick={() => setZoom((z) => Math.min(1.5, z + 0.08))}>+</button>
+        <button className={btn} onClick={() => setShowLayers((v) => !v)}>
+          {showLayers ? "Ocultar camadas" : "Camadas"}
+        </button>
+
         <span className="flex-1" />
+
+        {rendering && (
+          <span className="flex items-center gap-1.5 text-[11px] text-gray-400 mr-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#F5A623] animate-pulse" />
+            atualizando folhas
+          </span>
+        )}
         <button
           className={btn}
-          onClick={() => { if (confirm(`Descartar a diagramação da folha ${PAGES.find(p=>p.id===page)?.label}?`)) { ed.commit(); ed.resetPage(page); } }}
+          onClick={() => {
+            if (confirm(`Descartar tudo que você posicionou na folha ${pageIndex}?`)) {
+              ed.commit();
+              ed.resetPageIndex(pageIndex);
+            }
+          }}
         >
           Restaurar folha
         </button>
@@ -153,60 +179,85 @@ export function LayoutEditor({
         </button>
       </div>
 
-      {/* Seletor de folha */}
-      <div className="flex gap-1 px-2.5 py-1.5 border-b border-gray-200 bg-white overflow-x-auto">
-        {PAGES.map((p) => {
-          const n = ed.layout.elements.filter((e) => e.page === p.id).length;
-          return (
-            <button
-              key={p.id}
-              onClick={() => { setPage(p.id); ed.setSelected([]); }}
-              className={`px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap transition ${
-                page === p.id ? "bg-[#1A1A1A] text-white" : "text-gray-500 hover:bg-gray-100"
-              }`}
-            >
-              {p.label}
-              {n > 0 && (
-                <span className={`ml-1.5 text-[10px] ${page === p.id ? "text-white/60" : "text-[#F5A623]"}`}>
-                  {n}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {erro && (
+        <div className="px-3 py-2 bg-red-50 border-b border-red-200 text-[12px] text-red-700 shrink-0">
+          Não consegui desenhar as folhas: {erro}
+        </div>
+      )}
 
-      {/* Três colunas */}
-      <div className="flex-1 min-h-0 grid grid-cols-[190px_minmax(0,1fr)_226px]">
-        <aside className="border-r border-gray-200 bg-gray-50 overflow-y-auto">
-          <LayerList
-            page={page}
-            layout={ed.layout}
-            elements={daPagina}
-            autoBlocks={autoBlocks}
-            selected={ed.selected}
-            onSelect={ed.setSelected}
-            onDetach={(def) => { ed.commit(); ed.detach(def.id, def.make({ heroSrc })); }}
-            onReattach={(id) => { ed.commit(); ed.reattach(id); }}
-            onToggleLock={(id) => {
-              const e = ed.layout.elements.find((x) => x.id === id);
-              if (e) { ed.commit(); ed.patch(id, { locked: !e.locked }); }
-            }}
-            onDetachAll={() => {
-              ed.commit();
-              for (const b of autoBlocks.filter((b) => b.page === page && !ed.layout.detached.includes(b.id))) {
-                ed.detach(b.id, b.make({ heroSrc }));
-              }
-            }}
-          />
+      <div className="flex-1 min-h-0 flex">
+        {/* Miniaturas — todas as folhas do documento */}
+        <aside className="w-[126px] shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto py-3">
+          {pages.length === 0 ? (
+            <p className="px-3 text-[11px] text-gray-400 text-center leading-relaxed">
+              Desenhando as folhas…
+            </p>
+          ) : (
+            pages.map((p) => {
+              const n = ed.layout.elements.filter((e) => e.pageIndex === p.index).length;
+              const on = p.index === pageIndex;
+              return (
+                <button
+                  key={p.index}
+                  onClick={() => { setPageIndex(p.index); ed.setSelected([]); }}
+                  className="block w-full px-3 pb-3 text-left group"
+                >
+                  <div
+                    className={`relative rounded-sm overflow-hidden border-2 transition ${
+                      on ? "border-[#F5A623] shadow-md" : "border-gray-200 group-hover:border-gray-400"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.dataUrl} alt="" className="w-full block" />
+                    {n > 0 && (
+                      <span className="absolute top-1 right-1 bg-[#F5A623] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {n}
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[10px] mt-1 text-center font-semibold ${on ? "text-[#1A1A1A]" : "text-gray-400"}`}>
+                    {p.index}
+                  </p>
+                </button>
+              );
+            })
+          )}
         </aside>
 
-        <div className="overflow-auto bg-gray-100 p-6 flex justify-center items-start">
+        {/* Camadas */}
+        {showLayers && (
+          <aside className="w-[186px] shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto">
+            <LayerList
+              layout={ed.layout}
+              elements={daFolha}
+              autoBlocks={autoBlocks}
+              selected={ed.selected}
+              onSelect={ed.setSelected}
+              onDetach={(def) => { ed.commit(); ed.detach(def.id, def.make({ pageIndex, heroSrc })); }}
+              onReattach={(id) => { ed.commit(); ed.reattach(id); }}
+              onToggleLock={(id) => {
+                const e = ed.layout.elements.find((x) => x.id === id);
+                if (e) { ed.commit(); ed.patch(id, { locked: !e.locked }); }
+              }}
+              onDetachAll={() => {
+                ed.commit();
+                for (const b of autoBlocks.filter((b) => !ed.layout.detached.includes(b.id))) {
+                  ed.detach(b.id, b.make({ pageIndex, heroSrc }));
+                }
+              }}
+            />
+          </aside>
+        )}
+
+        {/* Folha */}
+        <div className="flex-1 min-w-0 overflow-auto bg-gray-200/70 p-6 flex justify-center items-start">
           <div style={{ width: PAGE_W * zoom }}>
             <PageCanvas
-              elements={daPagina}
+              elements={daFolha}
               selected={ed.selected}
               zoom={zoom}
+              backgroundUrl={folhaAtual?.dataUrl}
+              stale={rendering}
               onSelect={ed.setSelected}
               onCommit={ed.commit}
               onPatch={ed.patch}
@@ -215,10 +266,12 @@ export function LayoutEditor({
           </div>
         </div>
 
-        <aside className="border-l border-gray-200 bg-gray-50 overflow-y-auto">
+        {/* Propriedades */}
+        <aside className="w-[222px] shrink-0 border-l border-gray-200 bg-gray-50 overflow-y-auto">
           <LayoutInspector
             element={atual}
             imageOptions={imageOptions}
+            totalPages={total}
             onCommit={ed.commit}
             onPatch={(d) => atual && ed.patch(atual.id, d)}
             onRemove={() => atual && ed.remove([atual.id])}

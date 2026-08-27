@@ -5,16 +5,7 @@ import type {
   TextElement,
   ImageElement,
   RectElement,
-  LayerPageKind,
 } from "@/lib/pdf/layout";
-
-const PAGE_LABEL: Record<LayerPageKind, string> = {
-  capa: "Capa",
-  institucional: "Institucional",
-  conteudo: "Conteúdo",
-  imagens: "Imagens",
-  assinatura: "Assinatura",
-};
 
 const inputCls =
   "w-full px-2 py-1.5 rounded-md border border-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]";
@@ -53,6 +44,7 @@ function Seg<T extends string>({
 export function LayoutInspector({
   element,
   imageOptions,
+  totalPages,
   onCommit,
   onPatch,
   onRemove,
@@ -61,6 +53,7 @@ export function LayoutInspector({
 }: {
   element: LayoutElement | null;
   imageOptions: { label: string; src: string }[];
+  totalPages: number;
   onCommit: () => void;
   onPatch: (data: Partial<LayoutElement>) => void;
   onRemove: () => void;
@@ -123,13 +116,13 @@ export function LayoutInspector({
         <div>
           <label className={labelCls}>Folha</label>
           <select
-            value={e.page}
-            onChange={(ev) => set({ page: ev.target.value as LayerPageKind })}
+            value={e.pageIndex}
+            onChange={(ev) => set({ pageIndex: Number(ev.target.value) })}
             className={inputCls}
           >
-            {(Object.keys(PAGE_LABEL) as LayerPageKind[]).map((p) => (
-              <option key={p} value={p}>
-                {PAGE_LABEL[p]}
+            {Array.from({ length: Math.max(totalPages, e.pageIndex) }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                Folha {n}
               </option>
             ))}
           </select>

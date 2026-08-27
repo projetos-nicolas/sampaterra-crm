@@ -1042,6 +1042,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                   />
                 ) : rightPanel === "editor" ? (
                   <LayoutEditor
+                    pdfData={pdfData}
                     initialLayout={layout}
                     sections={sections
                       .filter((sec) => sec.enabled)

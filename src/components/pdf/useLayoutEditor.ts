@@ -7,7 +7,6 @@ import {
   PAGE_H,
   type LayoutElement,
   type ProposalLayout,
-  type LayerPageKind,
 } from "@/lib/pdf/layout";
 
 /**
@@ -106,17 +105,25 @@ export function useLayoutEditor(initial?: ProposalLayout | null) {
     setSelected([]);
   }, []);
 
-  /** Limpa a diagramação de uma folha, ou de tudo quando `page` é omitido. */
-  const resetPage = useCallback((page?: LayerPageKind) => {
-    setLayout((L) =>
-      page
-        ? {
-            ...L,
-            elements: L.elements.filter((e) => e.page !== page),
-            detached: L.detached.filter((d) => !d.startsWith(`auto:${pagePrefix(page)}`)),
-          }
-        : EMPTY_LAYOUT
-    );
+  /**
+   * Limpa a diagramação de uma folha. Os blocos que tinham sido soltos nela
+   * voltam ao fluxo automático — senão sumiriam do documento.
+   */
+  const resetPageIndex = useCallback((pageIndex: number) => {
+    setLayout((L) => {
+      const naFolha = L.elements.filter((e) => e.pageIndex === pageIndex);
+      const voltando = naFolha.map((e) => e.sourceId).filter(Boolean) as string[];
+      return {
+        ...L,
+        elements: L.elements.filter((e) => e.pageIndex !== pageIndex),
+        detached: L.detached.filter((d) => !voltando.includes(d)),
+      };
+    });
+    setSelected([]);
+  }, []);
+
+  const resetAll = useCallback(() => {
+    setLayout(EMPTY_LAYOUT);
     setSelected([]);
   }, []);
 
@@ -138,12 +145,9 @@ export function useLayoutEditor(initial?: ProposalLayout | null) {
     reorder,
     detach,
     reattach,
-    resetPage,
+    resetPageIndex,
+    resetAll,
   };
-}
-
-function pagePrefix(p: LayerPageKind): string {
-  return p === "institucional" ? "inst" : p === "conteudo" ? "cont" : p === "assinatura" ? "assin" : p;
 }
 
 // ── Guias de alinhamento ─────────────────────────────────────────────────────

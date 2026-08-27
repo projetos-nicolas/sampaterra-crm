@@ -1,6 +1,6 @@
 "use client";
 
-import type { LayoutElement, LayerPageKind, ProposalLayout } from "@/lib/pdf/layout";
+import type { LayoutElement, ProposalLayout } from "@/lib/pdf/layout";
 import type { AutoBlockDef } from "./autoBlocks";
 
 const ICON: Record<string, string> = { text: "T", image: "▣", rect: "▭" };
@@ -13,7 +13,6 @@ const ICON: Record<string, string> = { text: "T", image: "▣", rect: "▭" };
  * fluxo para poder arrastá-lo ou mandá-lo para outra folha.
  */
 export function LayerList({
-  page,
   layout,
   elements,
   autoBlocks,
@@ -24,7 +23,6 @@ export function LayerList({
   onToggleLock,
   onDetachAll,
 }: {
-  page: LayerPageKind;
   layout: ProposalLayout;
   elements: LayoutElement[];
   autoBlocks: AutoBlockDef[];
@@ -35,7 +33,7 @@ export function LayerList({
   onToggleLock: (id: string) => void;
   onDetachAll: () => void;
 }) {
-  const doPage = autoBlocks.filter((b) => b.page === page);
+  const doPage = autoBlocks;
   const presos = doPage.filter((b) => !layout.detached.includes(b.id));
 
   return (

@@ -12,7 +12,6 @@ import {
   elementsFor,
   type LayoutElement,
   type ProposalLayout,
-  type LayerPageKind,
   type TextElement,
   type ImageElement,
   type RectElement,
@@ -206,24 +205,35 @@ function Element({ e }: { e: LayoutElement }) {
   );
 }
 
-export function LayoutLayer({
-  layout,
-  page,
-  pageKey,
-}: {
-  layout?: ProposalLayout | null;
-  page: LayerPageKind;
-  pageKey?: string;
-}) {
+/**
+ * Ancorar por FOLHA FÍSICA.
+ *
+ * Uma <Page> com muito conteúdo vira várias folhas, e o layout engine decide
+ * onde quebrar — então não dá para saber de fora em qual folha um elemento
+ * cai. A saída é `fixed` + `render`: o @react-pdf chama a função uma vez por
+ * folha gerada, informando o `pageNumber` do documento. Desenhamos só o que
+ * pertence àquela folha.
+ *
+ * Por isso este componente entra em TODAS as <Page> do documento: cada uma
+ * cobre as folhas que ela mesma gerou, e o filtro por número faz o resto.
+ */
+export function LayoutLayer({ layout }: { layout?: ProposalLayout | null }) {
   if (!layout?.elements?.length) return null;
-  const items = elementsFor(layout, page, pageKey);
-  if (!items.length) return null;
 
   return (
-    <>
-      {items.map((e) => (
-        <Element key={e.id} e={e} />
-      ))}
-    </>
+    <View
+      fixed
+      render={({ pageNumber }: { pageNumber: number }) => {
+        const items = elementsFor(layout, pageNumber);
+        if (!items.length) return null;
+        return (
+          <>
+            {items.map((e) => (
+              <Element key={e.id} e={e} />
+            ))}
+          </>
+        );
+      }}
+    />
   );
 }

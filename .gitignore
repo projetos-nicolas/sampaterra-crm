@@ -40,3 +40,6 @@ prisma/migrations/
 # IDE
 .idea/
 .vscode/
+
+# worker do pdf.js — copiado no build por scripts/copy-pdf-worker.js
+public/pdfjs/

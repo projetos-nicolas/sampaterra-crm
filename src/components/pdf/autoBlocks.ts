@@ -4,7 +4,6 @@ import {
   makeText,
   makeImage,
   type LayoutElement,
-  type LayerPageKind,
 } from "@/lib/pdf/layout";
 
 /**
@@ -22,12 +21,12 @@ import {
 export interface AutoBlockDef {
   id: string;
   label: string;
-  page: LayerPageKind;
   make: (ctx: AutoBlockContext) => LayoutElement;
 }
 
 export interface AutoBlockContext {
-  /** Texto atual da seção, quando o bloco é uma seção dinâmica. */
+  /** Folha física onde o bloco solto deve nascer — a que está aberta. */
+  pageIndex: number;
   text?: string;
   title?: string;
   heroSrc?: string;
@@ -52,9 +51,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomos,
     label: "Título · Quem Somos",
-    page: "institucional",
-    make: () =>
-      makeText("institucional", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: "Título · Quem Somos",
         sourceId: AUTO_BLOCKS.instQuemSomos,
         x: 50, y: 96, w: 250, h: 30,
@@ -65,9 +63,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomosTxt1,
     label: "Parágrafo · institucional",
-    page: "institucional",
-    make: () =>
-      makeText("institucional", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: "Parágrafo · institucional",
         sourceId: AUTO_BLOCKS.instQuemSomosTxt1,
         x: 50, y: 130, w: 250, h: 72,
@@ -79,9 +76,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomosTxt2,
     label: "Parágrafo · frota própria",
-    page: "institucional",
-    make: () =>
-      makeText("institucional", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: "Parágrafo · frota própria",
         sourceId: AUTO_BLOCKS.instQuemSomosTxt2,
         x: 50, y: 208, w: 250, h: 72,
@@ -93,9 +89,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instServicos,
     label: "Título · Nossos Serviços",
-    page: "institucional",
-    make: () =>
-      makeText("institucional", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: "Título · Nossos Serviços",
         sourceId: AUTO_BLOCKS.instServicos,
         x: 50, y: 296, w: 280, h: 30,
@@ -106,9 +101,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instServicosTxt,
     label: "Parágrafo · serviços",
-    page: "institucional",
-    make: () =>
-      makeText("institucional", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: "Parágrafo · serviços",
         sourceId: AUTO_BLOCKS.instServicosTxt,
         x: 50, y: 330, w: 250, h: 56,
@@ -120,9 +114,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instHero,
     label: "Foto grande do topo",
-    page: "institucional",
     make: (ctx) =>
-      makeImage("institucional", ctx.heroSrc ?? "", {
+      makeImage(ctx.pageIndex, ctx.heroSrc ?? "", {
         name: "Foto grande do topo",
         sourceId: AUTO_BLOCKS.instHero,
         x: 325, y: 56, w: 220, h: 220,
@@ -133,9 +126,8 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.contClienteBox,
     label: "Quadro · Dados do Cliente",
-    page: "conteudo",
     make: (ctx) =>
-      makeText("conteudo", {
+      makeText(ctx.pageIndex, {
         name: "Quadro · Dados do Cliente",
         sourceId: AUTO_BLOCKS.contClienteBox,
         x: 50, y: 110, w: 495, h: 120,
@@ -154,9 +146,8 @@ export function sectionBlockDef(section: { id: string; title: string; content: s
   return {
     id: secaoBlockId(section.id),
     label: `${index + 1}. ${section.title}`,
-    page: "conteudo",
-    make: () =>
-      makeText("conteudo", {
+    make: (ctx) =>
+      makeText(ctx.pageIndex, {
         name: section.title,
         sourceId: secaoBlockId(section.id),
         x: 50, y: 250, w: 495, h: 120,

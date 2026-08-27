@@ -90,7 +90,8 @@ export function PageCanvas({
   elements,
   selected,
   zoom,
-  background,
+  backgroundUrl,
+  stale,
   onSelect,
   onCommit,
   onPatch,
@@ -99,8 +100,10 @@ export function PageCanvas({
   elements: LayoutElement[];
   selected: string[];
   zoom: number;
-  /** Miniatura do layout automático desenhada atrás — o contexto da folha. */
-  background?: React.ReactNode;
+  /** Imagem da folha real do PDF, desenhada atrás da camada editável. */
+  backgroundUrl?: string;
+  /** Aviso discreto enquanto a folha está sendo redesenhada. */
+  stale?: boolean;
   onSelect: (ids: string[]) => void;
   onCommit: () => void;
   onPatch: (id: string, data: Partial<LayoutElement>) => void;
@@ -193,7 +196,39 @@ export function PageCanvas({
         flex: "none",
       }}
     >
-      {background}
+      {/* A folha de verdade. É o PDF rasterizado, não uma imitação em HTML —
+          o que aparece aqui é exatamente o arquivo que será baixado. */}
+      {backgroundUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={backgroundUrl}
+          alt=""
+          draggable={false}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            opacity: stale ? 0.55 : 1,
+            transition: "opacity .2s",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#9ca3af",
+            fontSize: 13,
+          }}
+        >
+          Desenhando a folha…
+        </div>
+      )}
 
       {elements.map((e) => {
         if (e.hidden) return null;

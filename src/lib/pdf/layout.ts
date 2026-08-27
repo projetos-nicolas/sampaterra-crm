@@ -13,7 +13,15 @@
 export const PAGE_W = 595.28;
 export const PAGE_H = 841.89;
 
-/** Onde a camada livre pode ser desenhada. */
+/**
+ * Onde a camada livre pode ser desenhada.
+ *
+ * Mantido só para os blocos automáticos saberem a que parte do documento
+ * pertencem. A POSIÇÃO de um elemento livre é dada por `pageIndex` — a folha
+ * física do PDF, contada de 1 — porque uma <Page> de conteúdo pode virar três
+ * folhas quando o escopo é grande, e o usuário raciocina em folhas, não em
+ * blocos lógicos.
+ */
 export type LayerPageKind =
   | "capa"
   | "institucional"
@@ -31,12 +39,11 @@ interface BaseElement {
   /** Nome exibido na lista de camadas do editor. */
   name: string;
   /**
-   * Página onde o elemento vive. Trocar este campo MOVE o elemento de folha —
-   * é assim que um texto sai da folha de conteúdo e vai para a institucional.
-   * `pageKey` identifica qual página, quando há várias do mesmo tipo (imagens).
+   * Folha física do PDF onde o elemento aparece, contada de 1.
+   * Trocar este número MOVE o elemento de folha — é assim que um texto sai da
+   * folha 3 e vai para a folha 2.
    */
-  page: LayerPageKind;
-  pageKey?: string;
+  pageIndex: number;
   /**
    * Preenchido quando o elemento nasceu de um bloco do layout automático que
    * o usuário soltou. O renderizador usa `ProposalLayout.detached` para não
@@ -145,20 +152,15 @@ export function parseLayout(raw: unknown): ProposalLayout {
       Number.isFinite(e.x) &&
       Number.isFinite(e.y) &&
       Number.isFinite(e.w) &&
-      Number.isFinite(e.h)
+      Number.isFinite(e.h) &&
+      Number.isFinite(e.pageIndex)
   );
   return { v: 1, elements, detached };
 }
 
-/** Só os elementos de uma página, já na ordem de empilhamento. */
-export function elementsFor(
-  layout: ProposalLayout,
-  page: LayerPageKind,
-  pageKey?: string
-): LayoutElement[] {
-  return layout.elements.filter(
-    (e) => e.page === page && (pageKey === undefined || e.pageKey === pageKey)
-  );
+/** Só os elementos de uma folha física, já na ordem de empilhamento. */
+export function elementsFor(layout: ProposalLayout, pageIndex: number): LayoutElement[] {
+  return layout.elements.filter((e) => e.pageIndex === pageIndex);
 }
 
 export function newId(): string {
@@ -168,13 +170,13 @@ export function newId(): string {
 // ── Fábricas usadas pelos botões do editor ───────────────────────────────────
 
 export function makeText(
-  page: LayerPageKind,
+  pageIndex: number,
   patch: Partial<TextElement> = {}
 ): TextElement {
   return {
     id: newId(),
     name: "Novo texto",
-    page,
+    pageIndex,
     x: 60,
     y: 300,
     w: 240,
@@ -196,14 +198,14 @@ export function makeText(
 }
 
 export function makeImage(
-  page: LayerPageKind,
+  pageIndex: number,
   src: string,
   patch: Partial<ImageElement> = {}
 ): ImageElement {
   return {
     id: newId(),
     name: "Nova foto",
-    page,
+    pageIndex,
     x: 60,
     y: 300,
     w: 160,
@@ -220,13 +222,13 @@ export function makeImage(
 }
 
 export function makeRect(
-  page: LayerPageKind,
+  pageIndex: number,
   patch: Partial<RectElement> = {}
 ): RectElement {
   return {
     id: newId(),
     name: "Forma",
-    page,
+    pageIndex,
     x: 60,
     y: 300,
     w: 120,

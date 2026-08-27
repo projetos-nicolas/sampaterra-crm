@@ -520,7 +520,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
             <Text style={s.coverSiteText}>www.sampaterra.com.br</Text>
           </View>
         </View>
-        <LayoutLayer layout={data.layout} page="capa" />
+        <LayoutLayer layout={data.layout} />
       </Page>
 
       {/* ── QUEM SOMOS + OBRAS E PROJETOS (página institucional) ── */}
@@ -603,7 +603,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         </View>
 
         <PageFooter />
-        <LayoutLayer layout={data.layout} page="institucional" />
+        <LayoutLayer layout={data.layout} />
       </Page>
 
       {/* ── DADOS DO CLIENTE + SEÇÕES DINÂMICAS ── */}
@@ -676,7 +676,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         ))}
 
         <PageFooter />
-        <LayoutLayer layout={data.layout} page="conteudo" />
+        <LayoutLayer layout={data.layout} />
       </Page>
 
       {/* ── PÁGINAS DE IMAGENS (múltiplas imagens por página, posicionamento livre) ── */}
@@ -714,7 +714,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
               );
             })}
           </View>
-          <LayoutLayer layout={data.layout} page="imagens" pageKey={page.id} />
+          <LayoutLayer layout={data.layout} />
           <PageFooter />
         </Page>
       ))}
@@ -762,7 +762,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         </View>
 
         <PageFooter />
-        <LayoutLayer layout={data.layout} page="assinatura" />
+        <LayoutLayer layout={data.layout} />
       </Page>
     </Document>
   );
