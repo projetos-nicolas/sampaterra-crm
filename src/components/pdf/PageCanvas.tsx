@@ -113,6 +113,30 @@ export function PageCanvas({
   const [editing, setEditing] = useState<string | null>(null);
   const dragRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  /** Nó em edição — para dar foco uma única vez ao entrar no modo texto. */
+  const editRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * Durante o arraste o estado do React NÃO é atualizado a cada pixel: o nó é
+   * movido escrevendo direto no style. Um `setState` por movimento redesenha
+   * todos os elementos da folha e faz o arraste engasgar quando a página tem
+   * muita coisa. O estado só é gravado uma vez, ao soltar o botão.
+   */
+  function nodeOf(id: string): HTMLElement | null {
+    return boxRef.current?.querySelector(`[data-el-id="${id}"]`) ?? null;
+  }
+  function paintNode(id: string, b: { x: number; y: number; w: number; h: number }) {
+    const n = nodeOf(id);
+    if (!n) return;
+    n.style.left = b.x + "px";
+    n.style.top = b.y + "px";
+    n.style.width = b.w + "px";
+    n.style.height = b.h + "px";
+    const badge = n.querySelector("[data-badge]");
+    if (badge) {
+      badge.textContent = `${Math.round(b.x)}, ${Math.round(b.y)} · ${Math.round(b.w)}×${Math.round(b.h)}`;
+    }
+  }
 
   // Arraste e redimensionamento vivem em listeners de window para que o
   // ponteiro possa sair da folha sem "soltar" o elemento.
@@ -124,10 +148,10 @@ export function PageCanvas({
       const dy = (ev.clientY - d.sy) / zoom;
 
       if (d.mode === "move") {
-        const others = elements.filter((o) => o.id !== d.id);
-        const snapped = snapBox({ x: d.ox + dx, y: d.oy + dy, w: d.ow, h: d.oh }, others);
+        const snapped = snapBox({ x: d.ox + dx, y: d.oy + dy, w: d.ow, h: d.oh }, d.others);
         setGuides({ v: snapped.guidesV, h: snapped.guidesH });
-        onPatch(d.id, { x: snapped.x, y: snapped.y });
+        d.last = { x: snapped.x, y: snapped.y, w: d.ow, h: d.oh };
+        paintNode(d.id, d.last);
         return;
       }
 
@@ -145,12 +169,15 @@ export function PageCanvas({
       }
       // Shift mantém a proporção — importante para foto não distorcer.
       if (ev.shiftKey && d.kind === "image") oh = ow * (d.oh / d.ow);
-      onPatch(d.id, { x: ox, y: oy, w: ow, h: oh });
+      d.last = { x: ox, y: oy, w: ow, h: oh };
+      paintNode(d.id, d.last);
     }
     function up() {
-      if (!dragRef.current) return;
+      const d = dragRef.current;
       dragRef.current = null;
       setGuides({ v: [], h: [] });
+      // Grava no estado uma única vez, com a posição final
+      if (d?.last) onPatch(d.id, d.last);
     }
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
@@ -158,7 +185,7 @@ export function PageCanvas({
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
-  }, [elements, zoom, onPatch]);
+  }, [zoom, onPatch]);
 
   function startDrag(ev: React.MouseEvent, el: LayoutElement, handle?: Handle) {
     if (el.locked || editing) return;
@@ -176,6 +203,9 @@ export function PageCanvas({
       oy: el.y,
       ow: el.w,
       oh: el.h,
+      // Congela os vizinhos no início: as guias não mudam durante o arraste
+      others: elements.filter((o) => o.id !== el.id),
+      last: null as any,
     };
   }
 
@@ -236,6 +266,7 @@ export function PageCanvas({
         return (
           <div
             key={e.id}
+            data-el-id={e.id}
             onMouseDown={(ev) => {
               ev.stopPropagation();
               if (e.locked) {
@@ -255,21 +286,49 @@ export function PageCanvas({
               opacity: e.opacity,
               cursor: e.locked ? "default" : editing === e.id ? "text" : "move",
               outline: isSel ? "1.5px solid #2F6FE4" : undefined,
+              // O selecionado sobe na pilha: senão outro elemento sobreposto
+              // cobre as alças e o clique de redimensionar nunca chega nelas.
+              zIndex: isSel ? 30 : undefined,
             }}
           >
             {editing === e.id && e.kind === "text" ? (
               <div
+                // O conteúdo NÃO é filho React: se fosse, cada re-render
+                // reescreveria o nó e apagaria o que está sendo digitado.
+                // O texto entra uma vez, junto com o foco e o cursor no fim.
+                ref={(n) => {
+                  if (n && editRef.current !== n) {
+                    editRef.current = n;
+                    n.innerText = (e as TextElement).text;
+                    n.focus();
+                    const r = document.createRange();
+                    r.selectNodeContents(n);
+                    r.collapse(false);
+                    const sel = window.getSelection();
+                    sel?.removeAllRanges();
+                    sel?.addRange(r);
+                  }
+                }}
                 contentEditable
                 suppressContentEditableWarning
-                autoFocus
+                onMouseDown={(ev) => ev.stopPropagation()}
                 onBlur={(ev) => {
-                  onCommit();
-                  onEditText(e.id, ev.currentTarget.innerText);
+                  const texto = ev.currentTarget.innerText;
+                  editRef.current = null;
                   setEditing(null);
+                  if (texto !== (e as TextElement).text) {
+                    onCommit();
+                    onEditText(e.id, texto);
+                  }
                 }}
                 onKeyDown={(ev) => {
                   ev.stopPropagation();
                   if (ev.key === "Escape") (ev.target as HTMLElement).blur();
+                  // Enter com Ctrl/Cmd encerra; Enter sozinho quebra linha
+                  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+                    ev.preventDefault();
+                    (ev.target as HTMLElement).blur();
+                  }
                 }}
                 style={{
                   fontFamily: "Helvetica, Arial, sans-serif",
@@ -278,13 +337,14 @@ export function PageCanvas({
                   color: (e as TextElement).color,
                   lineHeight: (e as TextElement).lineHeight,
                   textAlign: (e as TextElement).align,
+                  letterSpacing: (e as TextElement).letterSpacing,
                   width: "100%",
+                  minHeight: "1em",
                   outline: "1.5px solid #E8571A",
                   whiteSpace: "pre-wrap",
+                  cursor: "text",
                 }}
-              >
-                {(e as TextElement).text}
-              </div>
+              />
             ) : (
               <ElementView e={e} />
             )}
@@ -292,8 +352,10 @@ export function PageCanvas({
             {isSel && !e.locked && editing !== e.id && (
               <>
                 <div
+                  data-badge=""
                   style={{
                     position: "absolute",
+                    zIndex: 41,
                     top: -18,
                     left: 0,
                     background: "#2F6FE4",
@@ -314,11 +376,16 @@ export function PageCanvas({
                     onMouseDown={(ev) => startDrag(ev, e, h)}
                     style={{
                       position: "absolute",
-                      width: 9,
-                      height: 9,
+                      width: 11,
+                      height: 11,
                       background: "#fff",
                       border: "1.5px solid #2F6FE4",
                       borderRadius: 2,
+                      // Acima de qualquer conteúdo do próprio elemento
+                      zIndex: 40,
+                      // Alvo generoso: com zoom em 60% a alça desenhada tem
+                      // poucos pixels na tela e vira uma caça ao mouse.
+                      boxShadow: "0 0 0 4px rgba(47,111,228,.001)",
                       cursor:
                         h === "n" || h === "s"
                           ? "ns-resize"
@@ -348,15 +415,16 @@ export function PageCanvas({
 }
 
 function handlePos(h: Handle): React.CSSProperties {
-  const m = -5;
+  const m = -6;
+  const meio = "calc(50% - 5.5px)";
   switch (h) {
     case "nw": return { left: m, top: m };
-    case "n":  return { left: "calc(50% - 4.5px)", top: m };
+    case "n":  return { left: meio, top: m };
     case "ne": return { right: m, top: m };
-    case "e":  return { right: m, top: "calc(50% - 4.5px)" };
+    case "e":  return { right: m, top: meio };
     case "se": return { right: m, bottom: m };
-    case "s":  return { left: "calc(50% - 4.5px)", bottom: m };
+    case "s":  return { left: meio, bottom: m };
     case "sw": return { left: m, bottom: m };
-    case "w":  return { left: m, top: "calc(50% - 4.5px)" };
+    case "w":  return { left: m, top: meio };
   }
 }

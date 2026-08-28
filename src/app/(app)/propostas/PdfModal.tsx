@@ -385,7 +385,14 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     .filter(Boolean)
     .join(", ");
 
-  const pdfData = useMemo(() => ({
+  /**
+   * Dados do PDF SEM a camada livre.
+   *
+   * O fundo do editor é gerado a partir daqui: assim arrastar um elemento não
+   * dispara a regeração do PDF inteiro — era o que travava a tela, já que o
+   * elemento arrastado já é desenhado ao vivo por cima.
+   */
+  const pdfDataBase = useMemo(() => ({
     code: proposal.code,
     title: proposal.title,
     date: new Date().toLocaleDateString("pt-BR"),
@@ -410,8 +417,13 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     paymentNotes: paymentNotes.trim() || undefined,
     imagens: imagePages,
     bankInfo,
-    layout,
-  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings, layout]);
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings]);
+
+  /** Dados completos — usados no Preview Final e no download. */
+  const pdfData = useMemo(
+    () => ({ ...pdfDataBase, layout }),
+    [pdfDataBase, layout]
+  );
 
   const saveLayoutMut = trpc.proposals.savePdfLayout.useMutation();
 
@@ -1042,7 +1054,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                   />
                 ) : rightPanel === "editor" ? (
                   <LayoutEditor
-                    pdfData={pdfData}
+                    pdfDataBase={pdfDataBase}
                     initialLayout={layout}
                     sections={sections
                       .filter((sec) => sec.enabled)

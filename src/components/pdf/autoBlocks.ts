@@ -18,15 +18,21 @@ import {
  * representações.
  */
 
+/** A que parte do documento o bloco pertence — usado para achar a folha. */
+export type DocPart = "capa" | "institucional" | "conteudo" | "assinatura";
+
 export interface AutoBlockDef {
   id: string;
   label: string;
+  part: DocPart;
   make: (ctx: AutoBlockContext) => LayoutElement;
 }
 
 export interface AutoBlockContext {
-  /** Folha física onde o bloco solto deve nascer — a que está aberta. */
+  /** Folha física onde o bloco solto deve nascer. */
   pageIndex: number;
+  /** Quantos blocos já foram soltos nessa folha — evita empilhar no mesmo ponto. */
+  offsetIndex?: number;
   text?: string;
   title?: string;
   heroSrc?: string;
@@ -51,6 +57,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomos,
     label: "Título · Quem Somos",
+    part: "institucional",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Título · Quem Somos",
@@ -63,6 +70,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomosTxt1,
     label: "Parágrafo · institucional",
+    part: "institucional",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Parágrafo · institucional",
@@ -76,6 +84,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instQuemSomosTxt2,
     label: "Parágrafo · frota própria",
+    part: "institucional",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Parágrafo · frota própria",
@@ -89,6 +98,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instServicos,
     label: "Título · Nossos Serviços",
+    part: "institucional",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Título · Nossos Serviços",
@@ -101,6 +111,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instServicosTxt,
     label: "Parágrafo · serviços",
+    part: "institucional",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Parágrafo · serviços",
@@ -114,6 +125,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.instHero,
     label: "Foto grande do topo",
+    part: "institucional",
     make: (ctx) =>
       makeImage(ctx.pageIndex, ctx.heroSrc ?? "", {
         name: "Foto grande do topo",
@@ -126,6 +138,7 @@ export const AUTO_BLOCK_DEFS: AutoBlockDef[] = [
   {
     id: AUTO_BLOCKS.contClienteBox,
     label: "Quadro · Dados do Cliente",
+    part: "conteudo",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: "Quadro · Dados do Cliente",
@@ -146,11 +159,15 @@ export function sectionBlockDef(section: { id: string; title: string; content: s
   return {
     id: secaoBlockId(section.id),
     label: `${index + 1}. ${section.title}`,
+    part: "conteudo",
     make: (ctx) =>
       makeText(ctx.pageIndex, {
         name: section.title,
         sourceId: secaoBlockId(section.id),
-        x: 50, y: 250, w: 495, h: 120,
+        // Escalona para não empilhar todos no mesmo ponto
+        x: 50 + (ctx.offsetIndex ?? 0) * 10,
+        y: 120 + (ctx.offsetIndex ?? 0) * 26,
+        w: 495, h: 120,
         text: `${section.title}\n\n${section.content}`,
         size: 8.8,
         weight: 400,

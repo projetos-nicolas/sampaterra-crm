@@ -14,7 +14,7 @@ import { PageCanvas } from "./PageCanvas";
 import { LayoutInspector } from "./LayoutInspector";
 import { LayerList } from "./LayerList";
 import { usePdfPages } from "./usePdfPages";
-import { AUTO_BLOCK_DEFS, sectionBlockDef, type AutoBlockDef } from "./autoBlocks";
+import { AUTO_BLOCK_DEFS, sectionBlockDef, type AutoBlockDef, type DocPart } from "./autoBlocks";
 
 /**
  * Editor da proposta — a folha real do PDF ao fundo, camada livre por cima.
@@ -24,7 +24,7 @@ import { AUTO_BLOCK_DEFS, sectionBlockDef, type AutoBlockDef } from "./autoBlock
  * escopo criou) e edita sobre o documento, não sobre uma aproximação.
  */
 export function LayoutEditor({
-  pdfData,
+  pdfDataBase,
   initialLayout,
   sections,
   imageOptions,
@@ -33,7 +33,8 @@ export function LayoutEditor({
   onSave,
   saving,
 }: {
-  pdfData: any;
+  /** Dados do PDF SEM a camada livre — ver PdfModal. */
+  pdfDataBase: any;
   initialLayout?: ProposalLayout | null;
   sections: { id: string; title: string; content: string }[];
   imageOptions: { label: string; src: string }[];
@@ -47,7 +48,19 @@ export function LayoutEditor({
   const [zoom, setZoom] = useState(0.68);
   const [showLayers, setShowLayers] = useState(true);
 
-  const { pages, rendering, erro } = usePdfPages(pdfData, true);
+  /**
+   * O fundo só precisa ser redesenhado quando o CONTEÚDO muda ou quando um
+   * bloco é solto/devolvido (aí o fluxo se reorganiza). Arrastar um elemento
+   * não mexe em nada disso — por isso a chave abaixo ignora `elements`.
+   */
+  const detachedKey = ed.layout.detached.join("|");
+  const bgData = useMemo(
+    () => ({ ...pdfDataBase, layout: { v: 1 as const, elements: [], detached: ed.layout.detached } }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pdfDataBase, detachedKey]
+  );
+
+  const { pages, rendering, erro } = usePdfPages(bgData, true);
   const total = pages.length || 1;
 
   useEffect(() => { onChange?.(ed.layout); }, [ed.layout, onChange]);
@@ -60,6 +73,54 @@ export function LayoutEditor({
     () => [...AUTO_BLOCK_DEFS, ...sections.map((s, i) => sectionBlockDef(s, i))],
     [sections]
   );
+
+  /**
+   * Em que folha física vive cada parte do documento.
+   *
+   * A ordem das páginas é fixa — capa, institucional, conteúdo (quantas
+   * precisar), imagens, assinatura — então dá para deduzir os limites a partir
+   * do total de folhas e do número de páginas de imagem. É o que permite um
+   * bloco solto nascer NA FOLHA ONDE ELE JÁ ESTAVA, em vez de aparecer na
+   * folha aberta e sumir de vista.
+   */
+  const folhaDaParte = useMemo(() => {
+    const totalFolhas = pages.length || 1;
+    const nImagens = Array.isArray(pdfDataBase?.imagens) ? pdfDataBase.imagens.length : 0;
+    const assinatura = totalFolhas;
+    const primeiraImagem = Math.max(3, assinatura - nImagens);
+    const conteudo = 3;
+    const ultimoConteudo = Math.max(conteudo, primeiraImagem - 1);
+    const mapa: Record<DocPart, number> = {
+      capa: 1,
+      institucional: Math.min(2, totalFolhas),
+      conteudo: Math.min(conteudo, totalFolhas),
+      assinatura: assinatura,
+    };
+    return { mapa, conteudoAte: ultimoConteudo };
+  }, [pages.length, pdfDataBase?.imagens]);
+
+  /** Blocos que pertencem à folha aberta — o resto não aparece na lista. */
+  const blocosDaFolha = useMemo(
+    () =>
+      autoBlocks.filter((b) => {
+        if (b.part === "conteudo") {
+          return pageIndex >= folhaDaParte.mapa.conteudo && pageIndex <= folhaDaParte.conteudoAte;
+        }
+        return folhaDaParte.mapa[b.part] === pageIndex;
+      }),
+    [autoBlocks, folhaDaParte, pageIndex]
+  );
+
+  /** Solta um bloco na folha dele, já selecionado e visível. */
+  function soltar(def: AutoBlockDef, quantosJaSoltos: number) {
+    const destino =
+      def.part === "conteudo"
+        ? Math.max(folhaDaParte.mapa.conteudo, Math.min(pageIndex, folhaDaParte.conteudoAte))
+        : folhaDaParte.mapa[def.part];
+    ed.commit();
+    ed.detach(def.id, def.make({ pageIndex: destino, offsetIndex: quantosJaSoltos, heroSrc }));
+    if (destino !== pageIndex) setPageIndex(destino);
+  }
 
   const daFolha = ed.layout.elements.filter((e) => e.pageIndex === pageIndex);
   const atual = ed.layout.elements.find((e) => ed.selected.includes(e.id)) ?? null;
@@ -230,20 +291,21 @@ export function LayoutEditor({
             <LayerList
               layout={ed.layout}
               elements={daFolha}
-              autoBlocks={autoBlocks}
+              autoBlocks={blocosDaFolha}
               selected={ed.selected}
               onSelect={ed.setSelected}
-              onDetach={(def) => { ed.commit(); ed.detach(def.id, def.make({ pageIndex, heroSrc })); }}
+              onDetach={(def) => soltar(def, daFolha.length)}
               onReattach={(id) => { ed.commit(); ed.reattach(id); }}
               onToggleLock={(id) => {
                 const e = ed.layout.elements.find((x) => x.id === id);
                 if (e) { ed.commit(); ed.patch(id, { locked: !e.locked }); }
               }}
               onDetachAll={() => {
+                const pendentes = blocosDaFolha.filter((b) => !ed.layout.detached.includes(b.id));
                 ed.commit();
-                for (const b of autoBlocks.filter((b) => !ed.layout.detached.includes(b.id))) {
-                  ed.detach(b.id, b.make({ pageIndex, heroSrc }));
-                }
+                pendentes.forEach((b, i) =>
+                  ed.detach(b.id, b.make({ pageIndex, offsetIndex: daFolha.length + i, heroSrc }))
+                );
               }}
             />
           </aside>
