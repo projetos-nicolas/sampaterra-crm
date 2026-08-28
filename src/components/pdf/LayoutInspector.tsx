@@ -49,7 +49,8 @@ export function LayoutInspector({
   onPatch,
   onRemove,
   onReorder,
-  onReattach,
+  onPickImage,
+  onChangeClip,
 }: {
   element: LayoutElement | null;
   imageOptions: { label: string; src: string }[];
@@ -58,17 +59,22 @@ export function LayoutInspector({
   onPatch: (data: Partial<LayoutElement>) => void;
   onRemove: () => void;
   onReorder: (to: "front" | "back") => void;
-  onReattach: (blockId: string) => void;
+  /** Abre o seletor de arquivos para trocar a foto por uma do computador. */
+  onPickImage?: () => void;
+  /** Recorta a imagem — o recorte é gravado nela, não aplicado no PDF. */
+  onChangeClip?: (clip: "none" | "hex" | "circle") => void;
 }) {
   if (!element) {
     return (
       <div className="p-4 text-xs text-gray-400 leading-relaxed">
-        Clique num elemento da folha para editar.
+        Clique num elemento da folha para editar suas propriedades.
         <br />
         <br />
-        Para mexer num bloco que o sistema monta sozinho, use{" "}
-        <strong className="text-gray-600">Soltar</strong> na lista de camadas — ele ganha
-        posição própria e pode até mudar de folha.
+        <strong className="text-gray-600">Duplo clique</strong> em qualquer texto
+        para reescrevê-lo direto na folha.
+        <br />
+        <br />
+        Arraste uma imagem do computador para dentro da folha para inseri-la.
       </div>
     );
   }
@@ -96,21 +102,6 @@ export function LayoutInspector({
 
   return (
     <div className="text-xs">
-      {/* Origem do elemento */}
-      {e.sourceId && (
-        <div className="px-3 py-2.5 bg-amber-50 border-b border-amber-200">
-          <p className="text-[11px] text-amber-800 leading-relaxed">
-            Bloco solto do layout automático.
-          </p>
-          <button
-            onClick={() => onReattach(e.sourceId!)}
-            className="mt-1.5 w-full py-1.5 rounded-md border border-amber-300 bg-white text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
-          >
-            Devolver ao fluxo automático
-          </button>
-        </div>
-      )}
-
       {/* Folha e posição */}
       <div className="p-3 border-b border-gray-100 space-y-2">
         <div>
@@ -263,7 +254,7 @@ export function LayoutInspector({
             <Seg
               value={(e as ImageElement).clip}
               options={[["hex", "Hexágono"], ["circle", "Círculo"], ["none", "Reto"]]}
-              onChange={(v) => set({ clip: v } as any)}
+              onChange={(v) => onChangeClip?.(v as any)}
             />
           </div>
           <div>
@@ -274,9 +265,15 @@ export function LayoutInspector({
               onChange={(v) => set({ fit: v } as any)}
             />
           </div>
+          <button
+            onClick={() => onPickImage?.()}
+            className="w-full py-1.5 rounded-md border border-gray-200 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+          >
+            Trocar por uma imagem do computador
+          </button>
           {imageOptions.length > 0 && (
             <div>
-              <label className={labelCls}>Trocar a foto</label>
+              <label className={labelCls}>Ou usar uma do template</label>
               <select
                 value={(e as ImageElement).src}
                 onChange={(ev) => set({ src: ev.target.value } as any)}

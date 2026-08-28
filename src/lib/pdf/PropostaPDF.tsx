@@ -469,10 +469,13 @@ function HexImage({ src, size = 100 }: { src: string; size?: number }) {
 // ─── Documento Principal ──────────────────────────────────────────────────────
 
 /**
- * Envolve um bloco do layout automático. Se o usuário soltou esse bloco no
- * editor, ele NÃO é desenhado aqui — a versão solta é desenhada pela
- * <LayoutLayer>, na folha e na posição que ele escolheu. O fluxo se refecha
- * sozinho, sem deixar buraco.
+ * Envolve um bloco do layout automático.
+ *
+ * Quando o bloco virou editável, ele continua ocupando o MESMO espaço, só que
+ * invisível — a versão editável é desenhada por cima pela <LayoutLayer>, na
+ * posição exata. Reservar o espaço é essencial: se o bloco simplesmente
+ * sumisse do fluxo, tudo o que vem depois subiria e o texto editável ficaria
+ * desencontrado do resto da folha.
  */
 function AutoBlock({
   id,
@@ -483,7 +486,9 @@ function AutoBlock({
   layout?: ProposalLayout | null;
   children: React.ReactNode;
 }) {
-  if (isDetached(layout, id)) return null;
+  if (isDetached(layout, id)) {
+    return <View style={{ opacity: 0 }}>{children}</View>;
+  }
   return <>{children}</>;
 }
 
@@ -676,7 +681,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         ))}
 
         <PageFooter />
-        <LayoutLayer layout={data.layout} />
+        <LayoutLayer layout={data.layout} padTop={36} padLeft={48} />
       </Page>
 
       {/* ── PÁGINAS DE IMAGENS (múltiplas imagens por página, posicionamento livre) ── */}
@@ -714,7 +719,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
               );
             })}
           </View>
-          <LayoutLayer layout={data.layout} />
+          <LayoutLayer layout={data.layout} padTop={36} padLeft={48} />
           <PageFooter />
         </Page>
       ))}
@@ -762,7 +767,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
         </View>
 
         <PageFooter />
-        <LayoutLayer layout={data.layout} />
+        <LayoutLayer layout={data.layout} padTop={36} padLeft={48} />
       </Page>
     </Document>
   );

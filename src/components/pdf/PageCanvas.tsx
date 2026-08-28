@@ -14,8 +14,6 @@ import { snapBox } from "./useLayoutEditor";
 const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
 type Handle = (typeof HANDLES)[number];
 
-const HEX_CLIP = "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)";
-
 /** Estilos de destaque — precisam bater com os de LayoutLayer.tsx no PDF. */
 function highlightCss(e: TextElement): React.CSSProperties {
   switch (e.highlight) {
@@ -62,16 +60,10 @@ function ElementView({ e }: { e: LayoutElement }) {
   }
   if (e.kind === "image") {
     const i = e as ImageElement;
+    // O recorte já está embutido na imagem (ver clipImage.ts) — aplicar
+    // clip-path aqui de novo cortaria as pontas duas vezes.
     return (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          overflow: "hidden",
-          clipPath: i.clip === "hex" ? HEX_CLIP : undefined,
-          borderRadius: i.clip === "circle" ? "50%" : undefined,
-        }}
-      >
+      <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={i.src}
@@ -219,7 +211,7 @@ export function PageCanvas({
         height: PAGE_H,
         background: "#fff",
         transform: `scale(${zoom})`,
-        transformOrigin: "top center",
+        transformOrigin: "top left",
         boxShadow: "0 2px 8px rgba(0,0,0,.14), 0 16px 44px rgba(0,0,0,.16)",
         overflow: "hidden",
         userSelect: "none",

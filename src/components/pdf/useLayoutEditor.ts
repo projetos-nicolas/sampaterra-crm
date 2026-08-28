@@ -85,29 +85,33 @@ export function useLayoutEditor(initial?: ProposalLayout | null) {
     });
   }, []);
 
-  /** Solta um bloco do fluxo automático: ele some do fluxo e vira elemento livre. */
-  const detach = useCallback((blockId: string, el: LayoutElement) => {
-    setLayout((L) => ({
-      ...L,
-      detached: L.detached.includes(blockId) ? L.detached : [...L.detached, blockId],
-      elements: [...L.elements, el],
-    }));
-    setSelected([el.id]);
-  }, []);
-
-  /** Devolve o bloco ao fluxo automático e descarta a versão solta. */
-  const reattach = useCallback((blockId: string) => {
-    setLayout((L) => ({
-      ...L,
-      detached: L.detached.filter((d) => d !== blockId),
-      elements: L.elements.filter((e) => e.sourceId !== blockId),
-    }));
-    setSelected([]);
+  /**
+   * Converte de uma vez todos os blocos de uma folha em elementos editáveis.
+   *
+   * Roda sozinho quando a folha é aberta no editor. O usuário não vê nada
+   * disso: para ele, os campos da folha simplesmente respondem ao duplo
+   * clique. Idempotente — a folha só é convertida uma vez.
+   */
+  const materializePage = useCallback((pageIndex: number, blocos: { id: string; el: LayoutElement }[]) => {
+    setLayout((L) => {
+      if (L.materialized?.includes(pageIndex)) return L;
+      const novos = blocos.filter((b) => !L.detached.includes(b.id));
+      if (!novos.length) {
+        return { ...L, materialized: [...(L.materialized ?? []), pageIndex] };
+      }
+      return {
+        ...L,
+        detached: [...L.detached, ...novos.map((b) => b.id)],
+        elements: [...L.elements, ...novos.map((b) => b.el)],
+        materialized: [...(L.materialized ?? []), pageIndex],
+      };
+    });
   }, []);
 
   /**
-   * Limpa a diagramação de uma folha. Os blocos que tinham sido soltos nela
-   * voltam ao fluxo automático — senão sumiriam do documento.
+   * Devolve uma folha ao original: descarta os elementos dela e reabilita o
+   * fluxo automático dos blocos correspondentes. A folha volta a ser
+   * convertida na próxima vez que for aberta.
    */
   const resetPageIndex = useCallback((pageIndex: number) => {
     setLayout((L) => {
@@ -117,6 +121,7 @@ export function useLayoutEditor(initial?: ProposalLayout | null) {
         ...L,
         elements: L.elements.filter((e) => e.pageIndex !== pageIndex),
         detached: L.detached.filter((d) => !voltando.includes(d)),
+        materialized: (L.materialized ?? []).filter((n) => n !== pageIndex),
       };
     });
     setSelected([]);
@@ -143,8 +148,7 @@ export function useLayoutEditor(initial?: ProposalLayout | null) {
     add,
     remove,
     reorder,
-    detach,
-    reattach,
+    materializePage,
     resetPageIndex,
     resetAll,
   };

@@ -75,8 +75,16 @@ export interface TextElement extends BaseElement {
 
 export interface ImageElement extends BaseElement {
   kind: "image";
-  /** data: URI ou caminho público do Supabase Storage. */
+  /**
+   * A imagem como será desenhada — já com o recorte aplicado.
+   *
+   * O recorte é feito no editor, não no PDF: o @react-pdf não aceita máscara
+   * SVG dentro da camada posicionada, então a alternativa é gravar a imagem
+   * recortada. Também deixa o PDF mais leve.
+   */
   src: string;
+  /** A imagem como veio, para poder trocar o recorte sem perder qualidade. */
+  srcOriginal?: string;
   clip: ClipKind;
   fit: FitKind;
   caption?: string;
@@ -96,14 +104,19 @@ export interface ProposalLayout {
   v: 1;
   elements: LayoutElement[];
   /**
-   * Ids dos blocos do layout automático que foram SOLTOS. O fluxo automático
-   * pula esses blocos e se refecha; a versão solta é desenhada pela camada
-   * livre, na posição e na folha que o usuário escolheu.
+   * Ids dos blocos do layout automático que viraram elementos editáveis.
+   *
+   * Isto é interno: o usuário não escolhe "soltar" nada. Ao abrir uma folha no
+   * editor, todos os blocos dela são convertidos de uma vez — o fluxo
+   * automático deixa de desenhá-los e a camada editável assume, na mesma
+   * posição. Para quem usa, a folha simplesmente é editável.
    */
   detached: string[];
+  /** Folhas já convertidas — evita refazer a conversão a cada abertura. */
+  materialized?: number[];
 }
 
-export const EMPTY_LAYOUT: ProposalLayout = { v: 1, elements: [], detached: [] };
+export const EMPTY_LAYOUT: ProposalLayout = { v: 1, elements: [], detached: [], materialized: [] };
 
 /**
  * Identificadores estáveis dos blocos automáticos que podem ser soltos.
@@ -155,7 +168,10 @@ export function parseLayout(raw: unknown): ProposalLayout {
       Number.isFinite(e.h) &&
       Number.isFinite(e.pageIndex)
   );
-  return { v: 1, elements, detached };
+  const materialized = Array.isArray(obj.materialized)
+    ? obj.materialized.filter((n: any) => Number.isFinite(n))
+    : [];
+  return { v: 1, elements, detached, materialized };
 }
 
 /** Só os elementos de uma folha física, já na ordem de empilhamento. */

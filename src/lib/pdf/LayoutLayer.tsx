@@ -1,13 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Image as PDFImage,
-  Svg,
-  Defs,
-  ClipPath,
-  Polygon,
-} from "@react-pdf/renderer";
+import { View, Text, Image as PDFImage } from "@react-pdf/renderer";
 import {
   elementsFor,
   type LayoutElement,
@@ -114,57 +106,14 @@ function TextEl({ e }: { e: TextElement }) {
 }
 
 function ImageEl({ e }: { e: ImageElement }) {
-  // `contain` mantém a foto inteira; `cover` preenche a caixa. O @react-pdf
-  // usa objectFit, igual ao CSS.
-  const fit = e.fit === "contain" ? "contain" : "cover";
-
-  if (e.clip === "none") {
-    return (
-      <PDFImage
-        src={e.src}
-        style={{ width: e.w, height: e.h, objectFit: fit }}
-      />
-    );
-  }
-
-  // Hexágono e círculo saem por clip SVG — mesma técnica do HexImage do
-  // template, generalizada para caixas retangulares.
-  const id = "clip_" + e.id.replace(/[^a-zA-Z0-9]/g, "");
-  const pts =
-    e.clip === "hex"
-      ? [
-          [e.w * 0.5, 0],
-          [e.w, e.h * 0.25],
-          [e.w, e.h * 0.75],
-          [e.w * 0.5, e.h],
-          [0, e.h * 0.75],
-          [0, e.h * 0.25],
-        ]
-      : // círculo aproximado por polígono de 32 lados — evita depender de
-        // <Circle> dentro de ClipPath, que nem toda versão do react-pdf aceita
-        Array.from({ length: 32 }, (_, i) => {
-          const a = (i / 32) * Math.PI * 2;
-          return [e.w / 2 + (e.w / 2) * Math.cos(a), e.h / 2 + (e.h / 2) * Math.sin(a)];
-        });
-
+  // O recorte (hexágono, círculo) já vem embutido na imagem — feito no editor
+  // por canvas, porque o @react-pdf não aceita máscara SVG dentro da camada
+  // posicionada. Aqui é só desenhar.
   return (
-    <Svg width={e.w} height={e.h} viewBox={`0 0 ${e.w} ${e.h}`}>
-      <Defs>
-        <ClipPath id={id}>
-          <Polygon points={pts.map(([x, y]) => `${x},${y}`).join(" ")} />
-        </ClipPath>
-      </Defs>
-      <PDFImage
-        src={e.src}
-        // @ts-ignore — x/y/clipPath são válidos dentro de <Svg>, os tipos do
-        // @react-pdf não expõem (mesma supressão já usada em HexImage)
-        x={0}
-        y={0}
-        width={e.w}
-        height={e.h}
-        clipPath={`url(#${id})`}
-      />
-    </Svg>
+    <PDFImage
+      src={e.src}
+      style={{ width: e.w, height: e.h, objectFit: e.fit === "contain" ? "contain" : "cover" }}
+    />
   );
 }
 
@@ -217,12 +166,36 @@ function Element({ e }: { e: LayoutElement }) {
  * Por isso este componente entra em TODAS as <Page> do documento: cada uma
  * cobre as folhas que ela mesma gerou, e o filtro por número faz o resto.
  */
-export function LayoutLayer({ layout }: { layout?: ProposalLayout | null }) {
+export function LayoutLayer({
+  layout,
+  padTop = 0,
+  padLeft = 0,
+}: {
+  layout?: ProposalLayout | null;
+  /**
+   * Recuo da <Page>. As coordenadas dos elementos são medidas a partir do
+   * CANTO DA FOLHA, mas um filho posicionado dentro de uma Page com padding
+   * tem origem na área de conteúdo. Sem compensar, tudo escorrega para dentro
+   * — e um elemento no rodapé acaba fora da folha.
+   */
+  padTop?: number;
+  padLeft?: number;
+}) {
   if (!layout?.elements?.length) return null;
 
   return (
     <View
       fixed
+      // A camada cobre a folha inteira e vira a referência dos filhos
+      // absolutos. Sem isto ela seria só mais um bloco no fim do fluxo, e os
+      // elementos ficariam ancorados onde o fluxo terminou.
+      style={{
+        position: "absolute",
+        top: -padTop,
+        left: -padLeft,
+        width: 595.28,
+        height: 841.89,
+      }}
       render={({ pageNumber }: { pageNumber: number }) => {
         const items = elementsFor(layout, pageNumber);
         if (!items.length) return null;
