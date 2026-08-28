@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/trpc/client";
 import { formatCurrency } from "@/lib/utils";
+import { useKanbanDnD } from "@/components/useKanbanDnD";
 import { type LeadStatus } from "@prisma/client";
 
 const STATUS_COLORS: Record<string, { badge: string; col: string }> = {
@@ -366,6 +367,12 @@ export default function PipelinePage() {
 
   const { data: pipeline, refetch } = trpc.leads.pipeline.useQuery();
   const updateStatus = trpc.leads.updateStatus.useMutation({ onSuccess: () => refetch() });
+
+  // Arrastar cards entre as fases. Os botões Avançar/Voltar continuam ali:
+  // no celular o arraste não funciona, e eles são a única saída.
+  const dnd = useKanbanDnD<LeadStatus>({
+    onMove: (id, status) => updateStatus.mutate({ id, status }),
+  });
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => { refetch(); setDeleteMenuLeadId(null); },
     onError: (e) => alert(e.message),
@@ -388,6 +395,9 @@ export default function PipelinePage() {
           <p className="text-gray-400 text-sm mt-0.5">
             {allLeads.filter(l => !["proposta_declinada","perdido"].includes(l.status)).length} oportunidades · {formatCurrency(totalValue)} em aberto
           </p>
+          <p className="text-gray-300 text-xs mt-0.5 hidden sm:block">
+            Arraste um card para outra fase, ou use os botões do próprio card.
+          </p>
         </div>
         <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-[#F5A623] hover:bg-[#F7BB52] text-white text-sm font-semibold rounded-lg transition whitespace-nowrap">
           + Novo Lead
@@ -401,7 +411,15 @@ export default function PipelinePage() {
           const colors = STATUS_COLORS[status];
 
           return (
-            <div key={status} className="flex-shrink-0 w-64">
+            <div
+              key={status}
+              {...dnd.colunaProps(status)}
+              className={`flex-shrink-0 w-64 rounded-lg transition-colors ${
+                dnd.colunaAlvo === status && dnd.arrastando?.de !== status
+                  ? "bg-[#F5A623]/10 ring-2 ring-[#F5A623]/50"
+                  : ""
+              }`}
+            >
               <div className={`flex items-center justify-between mb-2 pb-2 border-b-2 ${colors.col}`}>
                 <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.badge}`}>{STATUS_LABELS[status]}</span>
                 <span className="text-xs text-gray-400 font-semibold">{leads.length}</span>
@@ -418,7 +436,11 @@ export default function PipelinePage() {
                   const badgeColor = lead.serviceType ? (SERVICE_BADGE[lead.serviceType] ?? "bg-gray-100 text-gray-500") : null;
 
                   return (
-                    <div key={lead.id} className="bg-white border border-gray-200 rounded-lg p-3 hover:border-[#1A1A1A] transition group">
+                    <div
+                      key={lead.id}
+                      {...dnd.cardProps(lead.id, status)}
+                      className="bg-white border border-gray-200 rounded-lg p-3 hover:border-[#1A1A1A] transition group active:cursor-grabbing"
+                    >
                       {/* Título + botão editar */}
                       <div className="flex items-start justify-between gap-1 mb-1">
                         <p className="text-sm font-semibold text-gray-900 leading-tight">{lead.title}</p>
