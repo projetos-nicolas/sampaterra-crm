@@ -20,6 +20,7 @@ import { COVER_IMGS } from "./coverAssets";
 import { EQUIP_IMGS } from "./equipAssets";
 import { LayoutLayer } from "./LayoutLayer";
 import { AUTO_BLOCKS, secaoBlockId, isDetached, type ProposalLayout } from "./layout";
+import type { ExibicaoValores } from "./pdfConfig";
 
 // Desativa a hifenização automática (estava partindo "PROJETOS" em "PROJE-TOS")
 Font.registerHyphenationCallback((word) => [word]);
@@ -89,6 +90,12 @@ export interface PropostaPDFData {
   /** Apenas as seções habilitadas, em ordem — o PDF as numera 1..N */
   sections: PDFSection[];
   valorTotal: number;
+  /**
+   * Quanto de valor o documento mostra. "completo" (padrão) exibe tudo;
+   * "sem_total" esconde a frase com o valor e a faixa TOTAL; "sem_valores"
+   * deixa a tabela só com as condições de pagamento.
+   */
+  exibicaoValores?: ExibicaoValores;
   pagamentos: PagamentoItem[];
   /** Texto livre exibido abaixo da tabela de parcelas e antes dos dados bancários */
   paymentNotes?: string;
@@ -290,6 +297,7 @@ function SectionBlock({
   section,
   pagamentos,
   valorTotal,
+  exibicaoValores,
   paymentNotes,
   bankInfo,
 }: {
@@ -297,6 +305,7 @@ function SectionBlock({
   section: PDFSection;
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  exibicaoValores?: ExibicaoValores;
   paymentNotes?: string;
   bankInfo?: BankInfo;
 }) {
@@ -314,7 +323,7 @@ function SectionBlock({
 
       {/* Conteúdo */}
       {section.type === "pagamento" ? (
-        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} paymentNotes={paymentNotes} bankInfo={bankInfo} />
+        <PaymentContent pagamentos={pagamentos} valorTotal={valorTotal} exibicaoValores={exibicaoValores} paymentNotes={paymentNotes} bankInfo={bankInfo} />
       ) : (
         lines.map((line, i) => {
           if (!line.trim()) return null;
@@ -337,15 +346,19 @@ function SectionBlock({
 function PaymentContent({
   pagamentos,
   valorTotal,
+  exibicaoValores = "completo",
   paymentNotes,
   bankInfo,
 }: {
   pagamentos: PagamentoItem[];
   valorTotal: number;
+  exibicaoValores?: ExibicaoValores;
   paymentNotes?: string;
   bankInfo?: BankInfo;
 }) {
   const bi = bankInfo ?? DEFAULT_BANK_INFO;
+  const mostraTotal = exibicaoValores === "completo";
+  const mostraValores = exibicaoValores !== "sem_valores";
   return (
     <View>
       {/* Condições de Pagamento — antes das parcelas */}
@@ -360,33 +373,46 @@ function PaymentContent({
         </View>
       ) : null}
 
-      <Text style={[s.bodyText, { marginBottom: 6 }]}>
-        Pela execução dos serviços, o CONTRATANTE pagará o valor de{" "}
-        <Text style={{ fontFamily: "Helvetica-Bold", color: C.teal }}>
-          {formatBRL(valorTotal)}
+      {mostraTotal ? (
+        <Text style={[s.bodyText, { marginBottom: 6 }]}>
+          Pela execução dos serviços, o CONTRATANTE pagará o valor de{" "}
+          <Text style={{ fontFamily: "Helvetica-Bold", color: C.teal }}>
+            {formatBRL(valorTotal)}
+          </Text>
+          , conforme parcelas abaixo:
         </Text>
-        , conforme parcelas abaixo:
-      </Text>
+      ) : (
+        <Text style={[s.bodyText, { marginBottom: 6 }]}>
+          Pela execução dos serviços, o CONTRATANTE pagará conforme as condições
+          e parcelas abaixo:
+        </Text>
+      )}
 
       <View style={s.payTable} wrap={false}>
         <View style={s.payHead}>
           <Text style={[s.payHeadCell, { flex: 0.4 }]}>#</Text>
           <Text style={[s.payHeadCell, { flex: 3 }]}>Descrição / Condição</Text>
-          <Text style={[s.payHeadCell, { flex: 1.5, textAlign: "right" }]}>Valor</Text>
+          {mostraValores && (
+            <Text style={[s.payHeadCell, { flex: 1.5, textAlign: "right" }]}>Valor</Text>
+          )}
         </View>
         {pagamentos.map((p, i) => (
           <View key={i} style={[s.payRow, i % 2 === 1 ? s.payRowAlt : {}]}>
             <Text style={[s.payCell, { flex: 0.4 }]}>{i + 1}.</Text>
             <Text style={[s.payCell, { flex: 3 }]}>{p.descricao}</Text>
-            <Text style={[s.payCellBold, { flex: 1.5, textAlign: "right" }]}>
-              {formatBRL(p.valor)}
-            </Text>
+            {mostraValores && (
+              <Text style={[s.payCellBold, { flex: 1.5, textAlign: "right" }]}>
+                {formatBRL(p.valor)}
+              </Text>
+            )}
           </View>
         ))}
-        <View style={s.payTotal}>
-          <Text style={s.payTotalLbl}>Total</Text>
-          <Text style={s.payTotalVal}>{formatBRL(valorTotal)}</Text>
-        </View>
+        {mostraTotal && (
+          <View style={s.payTotal}>
+            <Text style={s.payTotalLbl}>Total</Text>
+            <Text style={s.payTotalVal}>{formatBRL(valorTotal)}</Text>
+          </View>
+        )}
       </View>
 
       <View style={s.bankBox} wrap={false}>
@@ -674,6 +700,7 @@ export function PropostaPDF({ data }: { data: PropostaPDFData }) {
               section={section}
               pagamentos={data.pagamentos}
               valorTotal={data.valorTotal}
+              exibicaoValores={data.exibicaoValores}
               paymentNotes={data.paymentNotes}
               bankInfo={data.bankInfo}
             />

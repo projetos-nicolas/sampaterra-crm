@@ -153,6 +153,53 @@ export const proposalsRouter = createTRPCRouter({
       });
     }),
 
+  /**
+   * Grava a configuração de conteúdo do PDF (exibição de valores, condições
+   * de pagamento, endereço da obra, dados bancários, parcelas).
+   *
+   * Salva o objeto inteiro de uma vez — a tela manda sempre o estado
+   * completo, o que evita divergência entre o que está na tela e no banco.
+   */
+  savePdfConfig: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        config: z
+          .object({
+            v: z.literal(1),
+            exibicaoValores: z.enum(["completo", "sem_total", "sem_valores"]),
+            paymentNotes: z.string().optional(),
+            obraAddress: z.string().optional(),
+            bankInfo: z
+              .object({
+                banco: z.string(),
+                empresa: z.string(),
+                cnpj: z.string(),
+                agencia: z.string(),
+                conta: z.string(),
+              })
+              .optional(),
+            pagamentos: z
+              .array(
+                z.object({
+                  descricao: z.string(),
+                  valor: z.number(),
+                  ordem: z.number(),
+                })
+              )
+              .optional(),
+          })
+          .nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.proposal.update({
+        where: { id: input.id },
+        data: { pdfConfig: input.config ?? Prisma.DbNull },
+        select: { id: true, pdfConfig: true, updatedAt: true },
+      });
+    }),
+
   // Cria nova proposta
   create: protectedProcedure
     .input(proposalUpsertSchema.extend({ code: z.string().optional() }))

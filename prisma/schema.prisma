@@ -259,6 +259,11 @@ model Proposal {
   /// Null = proposta usa só o layout automático.
   pdfLayout       Json?          @map("pdf_layout")
 
+  /// Configuração de conteúdo do PDF (ver src/lib/pdf/pdfConfig.ts):
+  /// exibição de valores, condições de pagamento, endereço da obra,
+  /// dados bancários e parcelas. Null = usa os padrões.
+  pdfConfig       Json?          @map("pdf_config")
+
   // Relações
   lead            Lead           @relation(fields: [leadId], references: [id])
   client          Client         @relation(fields: [clientId], references: [id])

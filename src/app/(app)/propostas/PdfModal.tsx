@@ -5,6 +5,12 @@ import dynamic from "next/dynamic";
 import { trpc } from "@/trpc/client";
 import type { PDFSection, PagamentoItem, BankInfo, ImageSlot, ImagePage } from "@/lib/pdf/PropostaPDF";
 import { parseLayout, EMPTY_LAYOUT, type ProposalLayout } from "@/lib/pdf/layout";
+import {
+  parsePdfConfig,
+  EXIBICAO_LABEL,
+  EXIBICAO_AJUDA,
+  type ExibicaoValores,
+} from "@/lib/pdf/pdfConfig";
 import { LayoutEditor } from "@/components/pdf/LayoutEditor";
 import { EQUIP_IMGS } from "@/lib/pdf/equipAssets";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
@@ -345,7 +351,22 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
 
   const [sections, setSections] = useState<EditableSection[]>(() => buildDefaultSections(initialScope));
 
+  /**
+   * Configuração já gravada nesta proposta.
+   *
+   * Tudo abaixo abre com o que foi salvo da última vez; só cai no padrão
+   * quando a proposta nunca foi configurada. Antes disso, condições de
+   * pagamento e parcelas eram remontadas do zero a cada abertura e o usuário
+   * redigitava tudo.
+   */
+  const cfgSalva = useMemo(
+    () => parsePdfConfig((proposal as any).pdfConfig),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [proposal.id]
+  );
+
   const [pagamentos, setPagamentos] = useState<PagamentoItem[]>(() => {
+    if (cfgSalva.pagamentos?.length) return cfgSalva.pagamentos as PagamentoItem[];
     const count = (proposal.items as any[]).length;
     if (count === 0) return [{ descricao: "Pagamento único", valor: proposal.totalValue, ordem: 1 }];
     const perItem = proposal.totalValue / count;
@@ -356,14 +377,19 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     }));
   });
 
-  const [bankInfo, setBankInfo] = useState<BankInfo>({ ...DEFAULT_BANK_INFO });
-  const [paymentNotes, setPaymentNotes] = useState("");
-  const [obraAddress, setObraAddress] = useState("");
+  const [bankInfo, setBankInfo] = useState<BankInfo>(
+    () => cfgSalva.bankInfo ?? { ...DEFAULT_BANK_INFO }
+  );
+  const [paymentNotes, setPaymentNotes] = useState(cfgSalva.paymentNotes ?? "");
+  const [obraAddress, setObraAddress] = useState(cfgSalva.obraAddress ?? "");
   const [sectionSpacings, setSectionSpacings] = useState<Record<string, number>>({});
   const [rightPanel, setRightPanel] = useState<"canvas" | "editor" | "preview">("canvas");
   // Camada livre de diagramação, carregada do que já estiver gravado na proposta
   const [layout, setLayout] = useState<ProposalLayout>(() => parseLayout((proposal as any).pdfLayout));
   const [savingLayout, setSavingLayout] = useState(false);
+  const [exibicaoValores, setExibicaoValores] = useState<ExibicaoValores>(cfgSalva.exibicaoValores);
+  const [cfgSalvando, setCfgSalvando] = useState(false);
+  const [cfgSalvo, setCfgSalvo] = useState(false);
   const [imagePages, setImagePages] = useState<ImagePage[]>([]);
   const contacts: any[] = (client as any).contacts ?? [];
   // Contato selecionado para aparecer na proposta (null = dados do cliente principal)
@@ -413,11 +439,12 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
         paddingBefore: sectionSpacings[id] ?? 0,
       })),
     valorTotal: proposal.totalValue,
+    exibicaoValores,
     pagamentos,
     paymentNotes: paymentNotes.trim() || undefined,
     imagens: imagePages,
     bankInfo,
-  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings]);
+  }), [proposal, client, clientAddress, obraAddress, sections, pagamentos, paymentNotes, imagePages, bankInfo, selectedContact, sectionSpacings, exibicaoValores]);
 
   /** Dados completos — usados no Preview Final e no download. */
   const pdfData = useMemo(
@@ -426,6 +453,44 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   );
 
   const saveLayoutMut = trpc.proposals.savePdfLayout.useMutation();
+  const saveConfigMut = trpc.proposals.savePdfConfig.useMutation();
+
+  /**
+   * Grava a configuração do PDF sozinha.
+   *
+   * Antes, condições de pagamento, endereço da obra e parcelas viviam só na
+   * tela e sumiam ao fechar o modal — era preciso redigitar tudo a cada vez.
+   */
+  const primeiraConfig = useRef(true);
+  useEffect(() => {
+    if (primeiraConfig.current) { primeiraConfig.current = false; return; }
+    setCfgSalvo(false);
+    const t = setTimeout(async () => {
+      setCfgSalvando(true);
+      try {
+        await saveConfigMut.mutateAsync({
+          id: proposal.id,
+          config: {
+            v: 1,
+            exibicaoValores,
+            paymentNotes: paymentNotes || undefined,
+            obraAddress: obraAddress || undefined,
+            bankInfo,
+            pagamentos: pagamentos.map((p, i) => ({
+              descricao: p.descricao,
+              valor: Number(p.valor) || 0,
+              ordem: Number.isFinite(p.ordem as any) ? (p.ordem as number) : i,
+            })),
+          },
+        });
+        setCfgSalvo(true);
+      } finally {
+        setCfgSalvando(false);
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exibicaoValores, paymentNotes, obraAddress, bankInfo, pagamentos]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -713,11 +778,44 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
           {/* Pagamento */}
           {tab === "pagamento" && (
             <div className="p-6">
+              {/* Quanto de valor o PDF mostra */}
+              <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-gray-800">Valores no PDF</h3>
+                  {cfgSalvando ? (
+                    <span className="text-[11px] text-gray-400">salvando…</span>
+                  ) : cfgSalvo ? (
+                    <span className="text-[11px] text-green-600">salvo</span>
+                  ) : null}
+                </div>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
+                  {(["completo", "sem_total", "sem_valores"] as ExibicaoValores[]).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setExibicaoValores(v)}
+                      className={`flex-1 px-3 py-2 text-xs font-semibold border-r border-gray-200 last:border-r-0 transition-colors ${
+                        exibicaoValores === v
+                          ? "bg-[#1A1A1A] text-white"
+                          : "text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      {EXIBICAO_LABEL[v]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                  {EXIBICAO_AJUDA[exibicaoValores]}
+                </p>
+              </div>
+
               <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800">Condições de Pagamento</h3>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Valor total: <strong className="text-[#1A1A1A]">{brl(proposal.totalValue)}</strong>
+                    {exibicaoValores !== "completo" && (
+                      <span className="text-gray-400"> · não aparece no PDF</span>
+                    )}
                   </p>
                 </div>
                 <div className="flex gap-2">
