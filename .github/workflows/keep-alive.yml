@@ -1,0 +1,61 @@
+# Mantém o banco do Supabase acordado — segunda linha de defesa.
+#
+# A Vercel já chama /api/keep-alive uma vez por dia (ver vercel.json), mas no
+# plano Hobby essa execução não é garantida: o horário é aproximado e falhas
+# passam despercebidas. Como o Supabase pausa o projeto depois de alguns dias
+# sem consulta, uma única fonte de "toque" é frágil demais — foi o que deixou o
+# banco pausar de novo em outubro de 2026.
+#
+# Este agendamento roda em outro horário e em outra infraestrutura. Para o
+# banco pausar, as duas teriam que falhar vários dias seguidos.
+name: Manter o banco acordado
+
+on:
+  schedule:
+    # 03:40 UTC = 00:40 em São Paulo. Minuto quebrado de propósito: o GitHub
+    # atrasa execuções agendadas na hora cheia, quando todo mundo agenda.
+    - cron: "40 3 * * *"
+  # Permite disparar à mão pela aba Actions, útil para testar.
+  workflow_dispatch:
+
+jobs:
+  acordar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar o keep-alive
+        env:
+          # Opcional: só precisa existir se CRON_SECRET também estiver
+          # configurado nas variáveis de ambiente da Vercel. Os dois valores
+          # têm que ser idênticos, senão a rota responde 401.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          URL="https://sampaterra-crm.vercel.app/api/keep-alive"
+
+          if [ -n "$CRON_SECRET" ]; then
+            CODIGO=$(curl -sS -m 60 -o resposta.json -w "%{http_code}" \
+              -H "Authorization: Bearer $CRON_SECRET" "$URL")
+          else
+            CODIGO=$(curl -sS -m 60 -o resposta.json -w "%{http_code}" "$URL")
+          fi
+
+          echo "HTTP $CODIGO"
+          cat resposta.json || true
+          echo
+
+          if [ "$CODIGO" = "200" ]; then
+            echo "Banco respondeu — continua acordado."
+            exit 0
+          fi
+
+          if [ "$CODIGO" = "401" ]; then
+            echo "::error::A rota recusou a chamada (401). O CRON_SECRET aqui no GitHub e o da Vercel precisam ser o mesmo valor."
+            exit 1
+          fi
+
+          if [ "$CODIGO" = "503" ]; then
+            echo "::error::O banco não respondeu — o projeto provavelmente está PAUSADO no Supabase. Entre no painel e clique em Resume project."
+            exit 1
+          fi
+
+          echo "::error::Resposta inesperada ($CODIGO) ao tentar acordar o banco."
+          exit 1
