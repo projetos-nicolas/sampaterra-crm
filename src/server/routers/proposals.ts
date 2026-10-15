@@ -188,6 +188,21 @@ export const proposalsRouter = createTRPCRouter({
                 })
               )
               .optional(),
+            // Seções com os textos como o usuário deixou — antes isso vivia
+            // só na tela e voltava ao padrão a cada reabertura do modal.
+            secoes: z
+              .array(
+                z.object({
+                  id: z.string(),
+                  title: z.string(),
+                  content: z.string(),
+                  type: z.enum(["text", "pagamento"]),
+                  enabled: z.boolean(),
+                  pageBreakBefore: z.boolean(),
+                })
+              )
+              .optional(),
+            modeloId: z.string().optional(),
           })
           .nullable(),
       })

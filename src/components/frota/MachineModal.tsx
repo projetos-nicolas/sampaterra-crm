@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { trpc } from "@/trpc/client";
 import { supabase, getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
+import { mensagemErro } from "@/lib/erros";
 
 const CATEGORIES = [
   "Escavadeira", "Retroescavadeira", "Pá-Carregadeira", "Trator de Esteira",
@@ -56,11 +57,11 @@ export function MachineModal({
 
   const createMut = trpc.frota.createMachine.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const updateMut = trpc.frota.updateMachine.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const deleteMut = trpc.frota.deleteMachine.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
@@ -81,7 +82,7 @@ export function MachineModal({
       if (error) throw error;
       setPhotoPath(data.path);
     } catch (e: any) {
-      setErro(`Falha ao enviar foto: ${e.message}`);
+      setErro("Não consegui enviar a foto. " + mensagemErro(e));
     } finally {
       setUploadingPhoto(false);
     }

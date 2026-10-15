@@ -10,6 +10,38 @@
  * usuário redigitava as condições de pagamento a cada vez.
  */
 
+import type { SectionType } from "./PropostaPDF";
+
+/**
+ * Uma seção do corpo da proposta, como o usuário a deixou.
+ * Vive aqui (e não em modelos.ts) porque tanto a config de uma proposta
+ * quanto um modelo salvo guardam exatamente esta estrutura.
+ */
+export interface SecaoModelo {
+  id: string;
+  title: string;
+  content: string;
+  type: SectionType;
+  enabled: boolean;
+  pageBreakBefore: boolean;
+}
+
+/** Lê uma lista de seções do banco com desconfiança. */
+export function parseSecoes(raw: unknown): SecaoModelo[] | null {
+  if (!Array.isArray(raw)) return null;
+  const secoes = raw
+    .filter((s: any) => s && typeof s.id === "string" && typeof s.title === "string")
+    .map((s: any) => ({
+      id: String(s.id),
+      title: String(s.title),
+      content: typeof s.content === "string" ? s.content : "",
+      type: (s.type === "pagamento" ? "pagamento" : "text") as SectionType,
+      enabled: s.enabled !== false,
+      pageBreakBefore: s.pageBreakBefore === true,
+    }));
+  return secoes.length ? secoes : null;
+}
+
 /** Quanto de valor o PDF mostra. */
 export type ExibicaoValores =
   /** Frase com o valor, coluna Valor preenchida e faixa TOTAL. */
@@ -50,6 +82,15 @@ export interface ProposalPdfConfig {
   bankInfo?: BankInfoConfig;
   /** Parcelas como o usuário montou. */
   pagamentos?: { descricao: string; valor: number; ordem: number }[];
+  /**
+   * As seções com os textos como o usuário deixou.
+   *
+   * Antes as seções viviam só no estado da tela: toda vez que o modal era
+   * reaberto, os textos voltavam ao padrão e qualquer ajuste se perdia.
+   */
+  secoes?: SecaoModelo[];
+  /** Modelo que originou esta proposta (só para informar na tela). */
+  modeloId?: string;
 }
 
 export const DEFAULT_PDF_CONFIG: ProposalPdfConfig = {
@@ -91,5 +132,7 @@ export function parsePdfConfig(raw: unknown): ProposalPdfConfig {
             ordem: Number.isFinite(p.ordem) ? p.ordem : i,
           }))
       : undefined,
+    secoes: parseSecoes(o.secoes) ?? undefined,
+    modeloId: typeof o.modeloId === "string" ? o.modeloId : undefined,
   };
 }

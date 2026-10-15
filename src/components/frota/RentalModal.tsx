@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/trpc/client";
 import { RentalOperators, type RentalOperatorRow } from "./RentalOperators";
+import { mensagemErro } from "@/lib/erros";
 
 type RentalData = {
   id: string;
@@ -81,11 +82,11 @@ export function RentalModal({
 
   const createMut = trpc.frota.createRental.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const updateMut = trpc.frota.updateRental.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const deleteMut = trpc.frota.deleteRental.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { SampaTerraLogo } from "@/components/SampaTerraLogo";
 import { trpc } from "@/trpc/client";
+import { mensagemErro } from "@/lib/erros";
 
 // ─── Formulário de Cadastro ───────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ function CadastroForm({ onBack }: { onBack: () => void }) {
 
   const createMut = trpc.requests.create.useMutation({
     onSuccess: () => setDone(true),
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(mensagemErro(e)),
   });
 
   function set(field: string, value: string) {
@@ -160,7 +161,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   const requestMut = trpc.auth.requestReset.useMutation({
     onSuccess: () => setDone(true),
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(mensagemErro(e)),
   });
 
   const inputCls =

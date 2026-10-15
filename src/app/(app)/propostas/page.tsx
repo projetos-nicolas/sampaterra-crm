@@ -5,6 +5,7 @@ import { trpc } from "@/trpc/client";
 import { ProposalStatus } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
+import { ModelosModal } from "./ModelosModal";
 const PdfModal = dynamic(() => import("./PdfModal").then((m) => m.PdfModal), { ssr: false });
 
 // ─── tipos auxiliares ─────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export default function PropostasPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showModelos, setShowModelos] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pdfProposalId, setPdfProposalId] = useState<string | null>(null);
   const [statusChangeModal, setStatusChangeModal] =
@@ -163,6 +165,8 @@ export default function PropostasPage() {
 
   return (
     <div className="h-full flex flex-col">
+      {showModelos && <ModelosModal onClose={() => setShowModelos(false)} />}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4 sm:mb-6">
         <div>
@@ -174,6 +178,18 @@ export default function PropostasPage() {
           </p>
         </div>
         {!isClient && (
+          <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowModelos(true)}
+            title="Abrir o PDF padrão para editar e salvar modelos"
+            className="flex items-center gap-2 px-3.5 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-semibold rounded-lg transition whitespace-nowrap"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M14 2v6h6M9 13h6M9 17h3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Modelos
+          </button>
           <button
             onClick={() => { setEditingId(null); setShowModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-[#F5A623] hover:bg-[#F7BB52] text-white text-sm font-semibold rounded-lg transition whitespace-nowrap"
@@ -183,6 +199,7 @@ export default function PropostasPage() {
             </svg>
             Nova Proposta
           </button>
+          </div>
         )}
       </div>
 

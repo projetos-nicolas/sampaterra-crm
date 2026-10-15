@@ -315,7 +315,8 @@ function SectionBlock({
     <View style={{ marginBottom: 14, paddingTop: section.paddingBefore ?? 0 }} break={section.pageBreakBefore === true}>
       {/* Título */}
       <View style={s.sectionRow} wrap={false}>
-        <Text style={s.sectionNum}>{number}.</Text>
+        {/* Dois dígitos precisam de mais largura, senão o "10." encosta no título. */}
+        <Text style={[s.sectionNum, number >= 10 ? { width: 36 } : {}]}>{number}.</Text>
         <View style={{ flex: 1, marginTop: 2 }}>
           <Text style={s.sectionH}>{section.title.toUpperCase()}</Text>
         </View>

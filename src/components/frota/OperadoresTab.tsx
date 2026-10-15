@@ -5,6 +5,7 @@ import { trpc } from "@/trpc/client";
 import { formatCpfCnpj } from "@/lib/utils";
 import { OperatorModal } from "./OperatorModal";
 import { OperatorDetail } from "./OperatorDetail";
+import { mensagemErro } from "@/lib/erros";
 
 export function OperadoresTab() {
   const [showInactive, setShowInactive] = useState(true);
@@ -30,7 +31,7 @@ export function OperadoresTab() {
 
   const setActive = trpc.operadores.setActive.useMutation({
     onSuccess: invalidateTudo,
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
 
   const ativos = operadores?.filter((o: any) => o.active).length ?? 0;

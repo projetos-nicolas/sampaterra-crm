@@ -5,6 +5,8 @@ import { trpc } from "@/trpc/client";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { UploadMultiplo } from "@/components/docs/UploadMultiplo";
+import { mensagemErro } from "@/lib/erros";
+import { toastErro } from "@/components/Toast";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1054,7 +1056,7 @@ export default function ProjetoDetalhe() {
   const [tab, setTab] = useState<Tab>("geral");
   const deleteProject = trpc.projects.delete.useMutation({
     onSuccess: () => router.push("/projetos"),
-    onError: (e) => alert(e.message),
+    onError: (e) => toastErro(mensagemErro(e)),
   });
 
   if (isLoading) return <div className="text-center py-20 text-gray-400">Carregando...</div>;

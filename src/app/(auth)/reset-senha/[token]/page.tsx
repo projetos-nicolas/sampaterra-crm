@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SampaTerraLogo } from "@/components/SampaTerraLogo";
 import { trpc } from "@/trpc/client";
+import { mensagemErro } from "@/lib/erros";
 
 export default function ResetSenhaPage() {
   const params = useParams();
@@ -22,7 +23,7 @@ export default function ResetSenhaPage() {
 
   const resetMut = trpc.auth.resetPassword.useMutation({
     onSuccess: () => setDone(true),
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
 
   const inputCls =

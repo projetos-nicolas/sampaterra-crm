@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/trpc/client";
 import { formatDate, maskCPF, maskCNPJ, maskPhone, maskCEP, formatCpfCnpj } from "@/lib/utils";
+import { mensagemErro } from "@/lib/erros";
+import { toastErro } from "@/components/Toast";
 
 const ESTADOS_BR = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
@@ -96,7 +98,7 @@ function ClientForm({ initial, onSubmit, onCancel, isPending, submitLabel }: { i
 
 function NovoClienteModal({ onClose, onSuccess }: { onClose:()=>void; onSuccess:()=>void; }) {
   const [error, setError] = useState("");
-  const createClient = trpc.clients.create.useMutation({ onSuccess:()=>{onSuccess();onClose();}, onError:e=>setError(e.message) });
+  const createClient = trpc.clients.create.useMutation({ onSuccess:()=>{onSuccess();onClose();}, onError:e=>setError(mensagemErro(e)) });
   const initial: ClientFormData = { type:"PF", name:"", company:"", cpf_cnpj:"", email:"", phone:"", cep:"", address:"", addressNumber:"", complement:"", city:"", state:"SP", notes:"" };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -189,11 +191,11 @@ function ContactsSection({ client, onUpdated }: { client: any; onUpdated: () => 
 
   const createContact = trpc.clients.createContact.useMutation({
     onSuccess: () => { onUpdated(); setAdding(false); setErr(""); setForm({ name: "", role: "", email: "", phone: "", isPrimary: false }); },
-    onError: (e) => setErr(e.message),
+    onError: (e) => setErr(mensagemErro(e)),
   });
   const updateContact = trpc.clients.updateContact.useMutation({
     onSuccess: () => { onUpdated(); setEditingId(null); setErr(""); },
-    onError: (e) => setErr(e.message),
+    onError: (e) => setErr(mensagemErro(e)),
   });
   const deleteContact = trpc.clients.deleteContact.useMutation({
     onSuccess: () => onUpdated(),
@@ -341,7 +343,7 @@ function EmpresaVinculadaSection({ client, onUpdated }: { client: any; onUpdated
   const [error, setError] = useState("");
   const linkCompany = trpc.clients.linkCompany.useMutation({
     onSuccess: () => { onUpdated(); setEditing(false); setError(""); },
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(mensagemErro(e)),
   });
 
   const hasCompany = !!client.linkedCompanyName;
@@ -417,7 +419,7 @@ function ClientPanel({ clientId, onClose, onUpdated, onDeleted, isAdmin }: { cli
   const updateClient = trpc.clients.update.useMutation({ onSuccess:()=>{ refetch(); onUpdated(); setEditing(false); } });
   const deleteClient = trpc.clients.delete.useMutation({
     onSuccess: onDeleted,
-    onError: (e) => alert(e.message),
+    onError: (e) => toastErro(mensagemErro(e)),
   });
 
   if (!client) return (

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { trpc } from "@/trpc/client";
 import { supabase, getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
+import { mensagemErro } from "@/lib/erros";
 
 type MaintenanceData = {
   id: string;
@@ -59,11 +60,11 @@ export function MaintenanceModal({
       onSuccess();
       onClose();
     },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const updateMut = trpc.frota.updateMaintenance.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const deleteMut = trpc.frota.deleteMaintenance.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
@@ -88,7 +89,7 @@ export function MaintenanceModal({
       }
       setPhotos((prev) => [...prev, ...uploaded]);
     } catch (e: any) {
-      setErro(`Falha ao enviar foto(s): ${e.message}`);
+      setErro("Não consegui enviar as fotos. " + mensagemErro(e));
     } finally {
       setUploading(false);
     }

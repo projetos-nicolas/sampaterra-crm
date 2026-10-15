@@ -5,6 +5,7 @@ import { trpc } from "@/trpc/client";
 import { supabase, getPublicUrl, STORAGE_BUCKETS } from "@/lib/supabase";
 import { MachineModal, STATUS_LABEL } from "./MachineModal";
 import { MaintenanceModal } from "./MaintenanceModal";
+import { mensagemErro } from "@/lib/erros";
 
 const STATUS_COLOR: Record<string, string> = {
   disponivel: "bg-green-100 text-green-700",
@@ -43,11 +44,11 @@ function PreventiveModal({
 
   const createMut = trpc.frota.createPreventiveMaintenance.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const updateMut = trpc.frota.updatePreventiveMaintenance.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const deleteMut = trpc.frota.deletePreventiveMaintenance.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
@@ -69,7 +70,7 @@ function PreventiveModal({
       if (error) throw error;
       setPhotoPath(data.path);
     } catch (e: any) {
-      setErro(`Falha ao enviar foto: ${e.message}`);
+      setErro("Não consegui enviar a foto. " + mensagemErro(e));
     } finally {
       setUploading(false);
     }

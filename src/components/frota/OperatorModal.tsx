@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/trpc/client";
 import { maskCPF, maskRG, maskPhone } from "@/lib/utils";
+import { mensagemErro } from "@/lib/erros";
 
 type OperatorData = {
   id: string;
@@ -39,15 +40,15 @@ export function OperatorModal({
 
   const createMut = trpc.operadores.create.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const updateMut = trpc.operadores.update.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
   const deleteMut = trpc.operadores.delete.useMutation({
     onSuccess: () => { onSuccess(); onClose(); },
-    onError: (e) => setErro(e.message),
+    onError: (e) => setErro(mensagemErro(e)),
   });
 
   const isPending = createMut.isPending || updateMut.isPending || deleteMut.isPending;

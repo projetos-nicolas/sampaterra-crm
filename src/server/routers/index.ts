@@ -13,6 +13,7 @@ import { escritorioRouter } from "./escritorio";
 import { authRouter } from "./auth";
 import { frotaRouter } from "./frota";
 import { operadoresRouter } from "./operadores";
+import { propostaModelosRouter } from "./propostaModelos";
 
 export const appRouter = createTRPCRouter({
   clients: clientsRouter,
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   projects: projectsRouter,
   proposals: proposalsRouter,
+  propostaModelos: propostaModelosRouter,
   docs: docsRouter,
   users: usersRouter,
   requests: requestsRouter,

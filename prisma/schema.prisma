@@ -294,6 +294,28 @@ model ProposalItem {
 }
 
 // ============================================================
+// MODELOS DE PROPOSTA (PDF padrão salvo)
+// ============================================================
+
+/// Um "PDF padrão" salvo: seções com seus textos, modo de exibição de
+/// valores, condições de pagamento, dados bancários e diagramação livre.
+/// Toda proposta nova nasce do modelo marcado como padrão.
+/// Ver src/lib/pdf/modelos.ts.
+model ProposalTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  /// Apenas um modelo fica com true — garantido pelo router, não pelo banco.
+  isDefault   Boolean  @default(false) @map("is_default")
+  /// Conteúdo do modelo (ConteudoModelo em src/lib/pdf/modelos.ts).
+  content     Json
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("proposal_templates")
+}
+
+// ============================================================
 // BIBLIOTECA DE ESCOPOS (templates reutilizáveis)
 // ============================================================
 

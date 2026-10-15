@@ -2,16 +2,41 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { type Context } from "./context";
+import { traduzirErro, ERRO_GENERICO } from "@/lib/erros";
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    const ehZod = error.cause instanceof ZodError;
+
+    /**
+     * Limpa a mensagem antes dela sair do servidor.
+     *
+     * Erros do Prisma e do driver do Postgres chegavam inteiros na tela do
+     * usuário (stack, nome da query, host do banco). Aqui o texto bruto fica
+     * só no log do servidor e o cliente recebe uma frase curta. Mensagens
+     * que nós mesmos escrevemos (TRPCError com `message`) passam intactas.
+     */
+    let message = shape.message;
+    if (!ehZod) {
+      const amigavel = traduzirErro(message);
+      if (amigavel) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[trpc] erro bruto:", error);
+        } else {
+          console.error("[trpc]", error.code, error.message);
+        }
+        message = amigavel;
+      }
+    }
+    if (!message) message = ERRO_GENERICO;
+
     return {
       ...shape,
+      message,
       data: {
         ...shape.data,
-        zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+        zodError: ehZod ? (error.cause as ZodError).flatten() : null,
       },
     };
   },

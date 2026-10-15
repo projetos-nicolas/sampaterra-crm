@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastHost } from "@/components/Toast";
 
 export const metadata: Metadata = {
   title: "Sampa Terra CRM",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ToastHost />
+      </body>
     </html>
   );
 }

@@ -6,6 +6,8 @@ import { trpc } from "@/trpc/client";
 import { formatCurrency } from "@/lib/utils";
 import { useKanbanDnD } from "@/components/useKanbanDnD";
 import { type LeadStatus } from "@prisma/client";
+import { mensagemErro } from "@/lib/erros";
+import { toastErro } from "@/components/Toast";
 
 const STATUS_COLORS: Record<string, { badge: string; col: string }> = {
   contato_inicial:     { badge: "bg-gray-100 text-gray-600",        col: "border-gray-300" },
@@ -211,8 +213,8 @@ function LeadModal({
   const { data: clientsData } = trpc.clients.list.useQuery({ limit: 100 });
   const clients = clientsData?.items ?? [];
 
-  const createLead = trpc.leads.create.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setError(e.message) });
-  const updateLead = trpc.leads.update.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setError(e.message) });
+  const createLead = trpc.leads.create.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setError(mensagemErro(e)) });
+  const updateLead = trpc.leads.update.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setError(mensagemErro(e)) });
 
   const f = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -375,11 +377,11 @@ export default function PipelinePage() {
   });
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => { refetch(); setDeleteMenuLeadId(null); },
-    onError: (e) => alert(e.message),
+    onError: (e) => toastErro(mensagemErro(e)),
   });
   const deleteProposal = trpc.proposals.delete.useMutation({
     onSuccess: () => { refetch(); setDeleteMenuLeadId(null); },
-    onError: (e) => alert(e.message),
+    onError: (e) => toastErro(mensagemErro(e)),
   });
   const { data: projectsData, refetch: refetchProjects } = trpc.projects.list.useQuery();
   const projectsByName = new Map(projectsData?.map(p => [p.name, p]) ?? []);

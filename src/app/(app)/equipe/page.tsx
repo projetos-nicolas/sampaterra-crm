@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/trpc/client";
+import { mensagemErro } from "@/lib/erros";
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
@@ -38,8 +39,8 @@ function UserModal({
   });
   const [erro, setErro] = useState("");
 
-  const criar = trpc.users.createInternal.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setErro(e.message) });
-  const editar = trpc.users.updateInternal.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setErro(e.message) });
+  const criar = trpc.users.createInternal.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setErro(mensagemErro(e)) });
+  const editar = trpc.users.updateInternal.useMutation({ onSuccess: () => { onSuccess(); onClose(); }, onError: e => setErro(mensagemErro(e)) });
   const excluir = trpc.users.deleteInternal.useMutation({ onSuccess: () => { onSuccess(); onClose(); } });
 
   const isPending = criar.isPending || editar.isPending || excluir.isPending;

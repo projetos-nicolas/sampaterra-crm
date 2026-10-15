@@ -14,6 +14,11 @@ import {
 import { LayoutEditor } from "@/components/pdf/LayoutEditor";
 import { EQUIP_IMGS } from "@/lib/pdf/equipAssets";
 import { DEFAULT_BANK_INFO } from "@/lib/pdf/PropostaPDF";
+import { secoesBase, CONDICOES_PAGAMENTO_BASE } from "@/lib/pdf/conteudoBase";
+import { parseConteudoModelo, type ConteudoModelo } from "@/lib/pdf/modelos";
+import type { SecaoModelo } from "@/lib/pdf/pdfConfig";
+import { toastOk, toastErro } from "@/components/Toast";
+import { mensagemErro } from "@/lib/erros";
 import { InteractivePDFCanvas } from "./InteractivePDFCanvas";
 
 const PDFPreviewPanel = dynamic(() => import("./PDFPreviewPanel"), {
@@ -35,105 +40,30 @@ interface EditableSection extends PDFSection {
   pageBreakBefore: boolean;
 }
 
+/**
+ * As seções com que uma proposta começa.
+ *
+ * O conteúdo vem de src/lib/pdf/conteudoBase.ts (textos da Sampa Terra,
+ * extraídos da PROP-2026-286). Antes os textos padrão eram de engenharia
+ * estrutural — ART/RRT, NBR 6118, TQS/Eberick — herdados de outro projeto,
+ * e precisavam ser reescritos à mão em toda proposta.
+ */
 function buildDefaultSections(scopeText: string): EditableSection[] {
-  return [
-    {
-      id: "objetivo",
-      title: "Objetivo do Contrato",
-      content:
-        "O objeto da presente proposta é a prestação de serviços técnicos de engenharia estrutural, compreendendo o desenvolvimento do projeto estrutural completo conforme escopo detalhado abaixo.",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "escopo",
-      title: "Detalhamento do Escopo",
-      content: scopeText,
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "metodologia",
-      title: "Metodologia e Diretrizes Técnicas",
-      content:
-        "- Todos os projetos seguem as normas técnicas vigentes da ABNT\n- NBR 6118 - Projeto de estruturas de concreto\n- NBR 7480 - Barras e fios de aço destinados a armaduras\n- NBR 6120 - Cargas para o cálculo de estruturas\n- Utilização de softwares homologados (TQS, Eberick ou similar)\n- Emissão de ART/RRT pelo engenheiro responsável",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "prazos",
-      title: "Prazos",
-      content:
-        "O prazo de execução dos serviços é de 30 (trinta) dias corridos a partir da assinatura e do recebimento das informações necessárias pelo CONTRATANTE.",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "pagamento",
-      title: "Investimento e Pagamento",
-      content: "",
-      type: "pagamento",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "obrig_contratante",
-      title: "Obrigações do Contratante",
-      content:
-        "- Fornecer todas as informações técnicas necessárias\n- Efetuar os pagamentos nas condições estabelecidas\n- Designar responsável para acompanhamento dos serviços\n- Informar previamente qualquer alteração de escopo",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "obrig_contratada",
-      title: "Obrigações da Contratada",
-      content:
-        "- Executar os serviços com qualidade técnica e dentro do prazo acordado\n- Designar profissional habilitado como responsável técnico\n- Emitir ART/RRT junto ao respectivo conselho de classe\n- Manter sigilo sobre informações confidenciais do CONTRATANTE",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "vigencia",
-      title: "Vigência da Proposta",
-      content: "A presente proposta tem validade de 30 (trinta) dias corridos a partir da data de sua emissão.",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "multas",
-      title: "Multas, Inadimplemento e Rescisão",
-      content:
-        "O não pagamento nas datas acordadas ensejará multa de 2% sobre o valor em atraso, acrescida de juros de 1% ao mês. A rescisão antecipada por parte do CONTRATANTE implica o pagamento dos serviços já realizados, acrescidos de 20% a título de perdas e danos.",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-    {
-      id: "foro",
-      title: "Foro de Eleição",
-      content: "As partes elegem o Foro da Comarca de Diadema - SP para dirimir quaisquer dúvidas ou litígios oriundos do presente instrumento.",
-      type: "text",
-      enabled: true,
-      expanded: false,
-      pageBreakBefore: false,
-    },
-  ];
+  return secoesBase().map((s) => ({
+    ...s,
+    content: s.id === "escopo" ? scopeText : s.content,
+    expanded: false,
+  }));
+}
+
+/** Converte as seções de um modelo (ou de uma config salva) para o editor. */
+function secoesParaEditor(secoes: SecaoModelo[], scopeText: string): EditableSection[] {
+  return secoes.map((s) => ({
+    ...s,
+    // O escopo é sempre da proposta, nunca do modelo.
+    content: s.id === "escopo" && !s.content.trim() ? scopeText : s.content,
+    expanded: false,
+  }));
 }
 
 interface Props {
@@ -342,14 +272,123 @@ function ImagePageEditor({
 
 // ─── Editor Principal ─────────────────────────────────────────────────────────
 
-function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }) {
+/**
+ * Proposta fictícia usada quando o editor está abrindo um MODELO.
+ *
+ * O modelo não pertence a nenhum cliente, mas o editor precisa de um para
+ * desenhar o PDF. Os dados abaixo só existem para a visualização.
+ */
+export function propostaExemplo(nomeModelo: string) {
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    code: "PROP-0000-000",
+    title: nomeModelo,
+    totalValue: 10000,
+    pdfConfig: null,
+    pdfLayout: null,
+    items: [
+      { description: "Serviço de exemplo", quantity: 1, unit: "vb" },
+    ],
+    client: {
+      name: "Cliente Exemplo",
+      company: "",
+      cpf_cnpj: "",
+      phone: "(11) 00000-0000",
+      email: "cliente@exemplo.com",
+      address: "Rua Exemplo",
+      addressNumber: "100",
+      complement: "",
+      city: "São Paulo",
+      state: "SP",
+      cep: "00000-000",
+      contacts: [],
+    },
+  };
+}
+
+function PdfEditor({
+  proposal,
+  onClose,
+  modelo,
+}: {
+  proposal: any;
+  onClose: () => void;
+  /**
+   * Quando presente, o editor está mexendo num MODELO, não numa proposta:
+   * o que for salvo vai para o modelo e vale para as próximas propostas.
+   */
+  modelo?: { id: string; name: string } | null;
+}) {
   const client = proposal.client;
+  const modoModelo = !!modelo;
 
   const initialScope = (proposal.items as any[])
     .map((item) => "- " + item.description + " — " + item.quantity + " " + (item.unit || "un"))
     .join("\n");
 
-  const [sections, setSections] = useState<EditableSection[]>(() => buildDefaultSections(initialScope));
+  /**
+   * Configuração já gravada nesta proposta.
+   *
+   * Lido antes dos useState porque vários deles partem daqui.
+   */
+  const cfgSalvaInicial = parsePdfConfig((proposal as any).pdfConfig);
+
+  const [sections, setSections] = useState<EditableSection[]>(() =>
+    cfgSalvaInicial.secoes?.length
+      ? secoesParaEditor(cfgSalvaInicial.secoes, initialScope)
+      : buildDefaultSections(initialScope)
+  );
+
+  /** Modelo em uso nesta proposta (null = ainda não definido). */
+  const [modeloId, setModeloId] = useState<string | null>(cfgSalvaInicial.modeloId ?? null);
+
+  const modelosQ = trpc.propostaModelos.list.useQuery();
+  const modelos = modelosQ.data ?? [];
+
+  /**
+   * Primeira abertura de uma proposta: aplica o modelo padrão.
+   *
+   * Só acontece quando a proposta ainda não tem seções gravadas — uma
+   * proposta já configurada nunca é sobrescrita pelo modelo.
+   */
+  const modeloAplicado = useRef(modoModelo || !!cfgSalvaInicial.secoes?.length);
+  useEffect(() => {
+    if (modeloAplicado.current) return;
+    const padrao = modelos.find((m: any) => m.isDefault) ?? modelos[0];
+    if (!padrao) return;
+    const conteudo = parseConteudoModelo(padrao.content);
+    if (!conteudo) return;
+    modeloAplicado.current = true;
+    setSections(secoesParaEditor(conteudo.secoes, initialScope));
+    setModeloId(padrao.id);
+    setExibicaoValores(conteudo.exibicaoValores);
+    if (conteudo.paymentNotes) setPaymentNotes(conteudo.paymentNotes);
+    if (conteudo.bankInfo) setBankInfo(conteudo.bankInfo);
+    if (conteudo.layout?.elements?.length) setLayout(conteudo.layout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelos.length]);
+
+  /** Troca o modelo em uso, preservando o escopo e as parcelas da proposta. */
+  const aplicarModelo = useCallback(
+    (id: string) => {
+      const m = modelos.find((x: any) => x.id === id);
+      if (!m) return;
+      const conteudo = parseConteudoModelo(m.content);
+      if (!conteudo) {
+        toastErro("Este modelo está vazio ou corrompido.");
+        return;
+      }
+      modeloAplicado.current = true;
+      setSections(secoesParaEditor(conteudo.secoes, initialScope));
+      setModeloId(id);
+      setExibicaoValores(conteudo.exibicaoValores);
+      setPaymentNotes(conteudo.paymentNotes ?? "");
+      if (conteudo.bankInfo) setBankInfo(conteudo.bankInfo);
+      setLayout(conteudo.layout?.elements?.length ? conteudo.layout : EMPTY_LAYOUT);
+      toastOk(`Modelo "${m.name}" aplicado.`);
+    },
+    [modelos, initialScope]
+  );
 
   /**
    * Configuração já gravada nesta proposta.
@@ -359,11 +398,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
    * pagamento e parcelas eram remontadas do zero a cada abertura e o usuário
    * redigitava tudo.
    */
-  const cfgSalva = useMemo(
-    () => parsePdfConfig((proposal as any).pdfConfig),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [proposal.id]
-  );
+  const cfgSalva = cfgSalvaInicial;
 
   const [pagamentos, setPagamentos] = useState<PagamentoItem[]>(() => {
     if (cfgSalva.pagamentos?.length) return cfgSalva.pagamentos as PagamentoItem[];
@@ -454,6 +489,31 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
 
   const saveLayoutMut = trpc.proposals.savePdfLayout.useMutation();
   const saveConfigMut = trpc.proposals.savePdfConfig.useMutation();
+  const utils = trpc.useUtils();
+  const saveModeloMut = trpc.propostaModelos.update.useMutation({
+    onSuccess: () => utils.propostaModelos.list.invalidate(),
+  });
+
+  /** Monta o conteúdo do modelo a partir do estado atual do editor. */
+  const montarConteudoModelo = useCallback(
+    (l?: ProposalLayout) => ({
+      v: 1 as const,
+      secoes: sections.map((sec) => ({
+        id: sec.id,
+        title: sec.title,
+        // O escopo é sempre da proposta — o modelo guarda o campo vazio.
+        content: sec.id === "escopo" ? "" : sec.content,
+        type: sec.type,
+        enabled: sec.enabled,
+        pageBreakBefore: sec.pageBreakBefore,
+      })),
+      exibicaoValores,
+      paymentNotes,
+      bankInfo,
+      layout: (l ?? layout) as any,
+    }),
+    [sections, exibicaoValores, paymentNotes, bankInfo, layout]
+  );
 
   /**
    * Grava a configuração do PDF sozinha.
@@ -468,6 +528,14 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     const t = setTimeout(async () => {
       setCfgSalvando(true);
       try {
+        if (modoModelo && modelo) {
+          await saveModeloMut.mutateAsync({
+            id: modelo.id,
+            content: montarConteudoModelo(),
+          });
+          setCfgSalvo(true);
+          return;
+        }
         await saveConfigMut.mutateAsync({
           id: proposal.id,
           config: {
@@ -481,6 +549,17 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
               valor: Number(p.valor) || 0,
               ordem: Number.isFinite(p.ordem as any) ? (p.ordem as number) : i,
             })),
+            // As seções vão junto: assim os textos ajustados sobrevivem ao
+            // fechar o modal, em vez de voltarem ao padrão.
+            secoes: sections.map((sec) => ({
+              id: sec.id,
+              title: sec.title,
+              content: sec.content,
+              type: sec.type,
+              enabled: sec.enabled,
+              pageBreakBefore: sec.pageBreakBefore,
+            })),
+            modeloId: modeloId ?? undefined,
           },
         });
         setCfgSalvo(true);
@@ -490,7 +569,7 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
     }, 1200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exibicaoValores, paymentNotes, obraAddress, bankInfo, pagamentos]);
+  }, [exibicaoValores, paymentNotes, obraAddress, bankInfo, pagamentos, sections, modeloId]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -555,7 +634,8 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
   const TABS = [
     { id: "secoes" as const, label: "Seções" },
     { id: "pagamento" as const, label: "Pagamento" },
-    { id: "imagens" as const, label: "Imagens" },
+    // Imagens são da proposta, não do modelo.
+    ...(modoModelo ? [] : [{ id: "imagens" as const, label: "Imagens" }]),
   ];
 
   return (
@@ -567,10 +647,42 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
         {/* Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap px-6 py-4 border-b border-gray-200 shrink-0">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-[#1A1A1A]">Gerar PDF</h2>
-            <p className="text-sm text-gray-500 truncate">{proposal.code} · {proposal.title}</p>
+            <h2 className="text-lg font-bold text-[#1A1A1A]">
+              {modoModelo ? "Editar modelo de proposta" : "Gerar PDF"}
+            </h2>
+            {modoModelo ? (
+              <p className="text-sm text-gray-500 truncate">
+                <span className="font-semibold text-[#1A1A1A]">{modelo!.name}</span>
+                <span className="mx-1.5 text-gray-300">·</span>
+                as alterações valem para as próximas propostas
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500 truncate">{proposal.code} · {proposal.title}</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Seletor de modelo — qual "PDF padrão" esta proposta está usando */}
+            {!modoModelo && modelos.length > 0 && (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Modelo
+                </span>
+                <select
+                  value={modeloId ?? ""}
+                  onChange={(e) => e.target.value && aplicarModelo(e.target.value)}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#F5A623]/50 max-w-[200px]"
+                  title="Trocar o modelo recarrega os textos das seções. O escopo e as parcelas desta proposta são mantidos."
+                >
+                  {!modeloId && <option value="">Selecione...</option>}
+                  {modelos.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.isDefault ? " (padrão)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -1175,10 +1287,17 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
                     onSave={async (l) => {
                       setSavingLayout(true);
                       try {
-                        await saveLayoutMut.mutateAsync({
-                          id: proposal.id,
-                          layout: l.elements.length || l.detached.length ? (l as any) : null,
-                        });
+                        if (modoModelo && modelo) {
+                          await saveModeloMut.mutateAsync({
+                            id: modelo.id,
+                            content: montarConteudoModelo(l),
+                          });
+                        } else {
+                          await saveLayoutMut.mutateAsync({
+                            id: proposal.id,
+                            layout: l.elements.length || l.detached.length ? (l as any) : null,
+                          });
+                        }
                         setLayout(l);
                       } finally {
                         setSavingLayout(false);
@@ -1195,5 +1314,63 @@ function PdfEditor({ proposal, onClose }: { proposal: any; onClose: () => void }
         </div>{/* fim split-view */}
       </div>
     </div>
+  );
+}
+
+/**
+ * Abre um MODELO no mesmo editor usado pelas propostas.
+ *
+ * O editor precisa de uma proposta para desenhar o PDF, então recebe uma
+ * fictícia com o conteúdo do modelo já carregado em `pdfConfig`/`pdfLayout`.
+ * Tudo que for salvo vai para o modelo.
+ */
+export function ModeloPdfModal({
+  modeloId,
+  onClose,
+}: {
+  modeloId: string;
+  onClose: () => void;
+}) {
+  const { data: modelo, isLoading } = trpc.propostaModelos.getById.useQuery({ id: modeloId });
+
+  const proposta = useMemo(() => {
+    if (!modelo) return null;
+    const conteudo = parseConteudoModelo(modelo.content);
+    const base = propostaExemplo(modelo.name);
+    if (!conteudo) return base;
+    return {
+      ...base,
+      pdfConfig: {
+        v: 1,
+        exibicaoValores: conteudo.exibicaoValores,
+        paymentNotes: conteudo.paymentNotes,
+        bankInfo: conteudo.bankInfo,
+        secoes: conteudo.secoes,
+      },
+      pdfLayout: conteudo.layout ?? null,
+    };
+  }, [modelo]);
+
+  if (isLoading || !modelo || !proposta) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-3">
+          <svg className="w-8 h-8 animate-spin text-[#1A1A1A]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+          </svg>
+          <p className="text-sm text-gray-600">Abrindo modelo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <PdfEditor
+      key={modelo.id}
+      proposal={proposta}
+      onClose={onClose}
+      modelo={{ id: modelo.id, name: modelo.name }}
+    />
   );
 }
